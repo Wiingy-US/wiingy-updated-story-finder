@@ -22,6 +22,7 @@ def init_db():
             keywords TEXT,
             date_from TEXT,
             date_to TEXT,
+            us_state TEXT DEFAULT 'all',
             created_at TEXT
         )
     """)
@@ -63,12 +64,12 @@ def init_db():
     conn.close()
 
 
-def save_search(keywords, date_from, date_to):
+def save_search(keywords, date_from, date_to, us_state="all"):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO searches (keywords, date_from, date_to, created_at) VALUES (?, ?, ?, ?)",
-        (json.dumps(keywords), date_from, date_to, datetime.utcnow().isoformat())
+        "INSERT INTO searches (keywords, date_from, date_to, us_state, created_at) VALUES (?, ?, ?, ?, ?)",
+        (json.dumps(keywords), date_from, date_to, us_state, datetime.utcnow().isoformat())
     )
     search_id = cursor.lastrowid
     conn.commit()
