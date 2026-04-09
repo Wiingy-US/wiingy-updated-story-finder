@@ -67,6 +67,70 @@
     }
     function defaultTo() { return new Date().toISOString().slice(0, 10); }
 
+    const US_STATES = [
+      'All States','Alabama','Alaska','Arizona','Arkansas','California','Colorado',
+      'Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois',
+      'Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland',
+      'Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana',
+      'Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York',
+      'North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania',
+      'Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah',
+      'Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'
+    ];
+
+    /* ── State Selector ── */
+    function StateSelector({ value, onChange }) {
+      const [open, setOpen] = useState(false);
+      const [filter, setFilter] = useState('');
+      const ref = useRef(null);
+
+      useEffect(() => {
+        function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+      }, []);
+
+      const filtered = US_STATES.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
+      const displayValue = value === 'all' ? 'All States' : value;
+
+      return (
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-700">US State</label>
+          <div className="flex items-center gap-2">
+            <div ref={ref} className="relative">
+              <button type="button" onClick={() => { setOpen(!open); setFilter(''); }}
+                className="flex items-center gap-1.5 border border-gray-200 rounded px-3 py-1.5 text-sm text-gray-700 hover:border-brand/50 min-w-[180px] justify-between">
+                <span>{displayValue}</span>
+                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+              </button>
+              {open && (
+                <div className="absolute z-50 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                  <div className="p-2 border-b border-gray-100">
+                    <input autoFocus value={filter} onChange={e => setFilter(e.target.value)}
+                      placeholder="Search states..."
+                      className="w-full text-sm px-2 py-1 border border-gray-200 rounded outline-none focus:ring-1 focus:ring-brand/30" />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {filtered.map(s => (
+                      <button key={s} type="button"
+                        onClick={() => { onChange(s === 'All States' ? 'all' : s); setOpen(false); setFilter(''); }}
+                        className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-brand/5 ${(s === 'All States' && value === 'all') || s === value ? 'bg-brand/10 text-brand font-medium' : 'text-gray-700'}`}>
+                        {s}
+                      </button>
+                    ))}
+                    {filtered.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No states found</div>}
+                  </div>
+                </div>
+              )}
+            </div>
+            {value !== 'all' && (
+              <Pill text={value} onRemove={() => onChange('all')} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
     /* ── Toast ── */
     function Toasts({ toasts }) {
       return (
@@ -200,6 +264,7 @@
       /* search state */
       const [keywords, setKeywords] = useState([]);
       const [kwInput, setKwInput] = useState('');
+      const [usState, setUsState] = useState('all');
       const [dateFrom, setDateFrom] = useState(defaultFrom);
       const [dateTo, setDateTo] = useState(defaultTo);
       const [searching, setSearching] = useState(false);
@@ -236,11 +301,11 @@
         try {
           const r = await api('/api/search', {
             method: 'POST',
-            body: JSON.stringify({ keywords, date_from: dateFrom, date_to: dateTo }),
+            body: JSON.stringify({ keywords, date_from: dateFrom, date_to: dateTo, us_state: usState }),
           });
           const data = await r.json();
           setStories(data.stories);
-          setSearchMeta({ searchId: data.search_id, total: data.total, keywords: [...keywords] });
+          setSearchMeta({ searchId: data.search_id, total: data.total, keywords: [...keywords], usState });
         } catch (e) { toast('Search failed: ' + e.message); }
         setSearching(false);
       }
@@ -371,9 +436,10 @@
         setTab('search');
         const kws = Array.isArray(s.keywords) ? s.keywords : JSON.parse(s.keywords || '[]');
         setKeywords(kws);
+        setUsState(s.us_state || 'all');
         setDateFrom(s.date_from);
         setDateTo(s.date_to);
-        setSearchMeta({ searchId: s.id, total: s.story_count, keywords: kws });
+        setSearchMeta({ searchId: s.id, total: s.story_count, keywords: kws, usState: s.us_state || 'all' });
         try {
           const r = await api(`/api/search/${s.id}/stories`);
           setStories(await r.json());
@@ -425,6 +491,8 @@
                     )}
                   </div>
                   {keywords.length >= 10 && <p className="text-xs text-amber">Maximum 10 keywords reached</p>}
+
+                  <StateSelector value={usState} onChange={setUsState} />
 
                   <div className="flex flex-wrap gap-4">
                     <div>
@@ -544,6 +612,7 @@
                             <div className="space-y-1.5">
                               <div className="flex flex-wrap gap-1.5">
                                 {kws.map(k => <Pill key={k} text={k} color="bg-brand/10 text-brand" />)}
+                                <Pill text={s.us_state && s.us_state !== 'all' ? s.us_state : 'All States'} color="bg-teal/10 text-teal" />
                               </div>
                               <div className="text-xs text-gray-500">
                                 {fmtDate(s.date_from)} — {fmtDate(s.date_to)} · {s.story_count} stories · {fmtDate(s.created_at)}

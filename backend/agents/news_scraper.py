@@ -2,14 +2,15 @@ import feedparser
 from urllib.parse import quote
 
 
-def fetch_google_news_rss(keywords, date_from, date_to):
+def fetch_google_news_rss(keywords, date_from, date_to, us_state="all"):
     all_stories = []
 
     for keyword in keywords:
         try:
+            query = keyword if us_state == "all" else f"{keyword} {us_state}"
             url = (
                 f"https://news.google.com/rss/search?"
-                f"q={quote(keyword)}+after:{date_from}+before:{date_to}"
+                f"q={quote(query)}+after:{date_from}+before:{date_to}"
                 f"&hl=en-US&gl=US&ceid=US:en"
             )
             feed = feedparser.parse(url)

@@ -52,6 +52,7 @@ class SearchRequest(BaseModel):
     keywords: list[str]
     date_from: str
     date_to: str
+    us_state: str = "all"
 
 
 def _stories_to_csv(stories, include_angle=False):
@@ -75,8 +76,8 @@ def _stories_to_csv(stories, include_angle=False):
 
 @app.post("/api/search")
 async def api_search(req: SearchRequest):
-    stories = fetch_google_news_rss(req.keywords, req.date_from, req.date_to)
-    search_id = save_search(req.keywords, req.date_from, req.date_to)
+    stories = fetch_google_news_rss(req.keywords, req.date_from, req.date_to, req.us_state)
+    search_id = save_search(req.keywords, req.date_from, req.date_to, req.us_state)
     inserted_ids = save_stories(search_id, stories)
     saved_stories = get_stories_by_search(search_id)
     return {"search_id": search_id, "stories": saved_stories, "total": len(saved_stories)}
