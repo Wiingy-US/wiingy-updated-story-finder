@@ -1,0 +1,18 @@
+Score each story on three dimensions, each from 1 to 10.
+
+BRAND RELEVANCE
+Score 8-10 when: Topic directly intersects tutoring, edtech, AI in learning, parenting, test prep, coding, math, languages, or music.
+Score 5-7 when: Loosely related to education or learning but no direct Wiingy connection.
+Score 1-4 when: General business news, unrelated industries, no clear Wiingy connection.
+
+JOURNALISTIC VALUE
+Score 8-10 when: Cites data, published by credible outlet such as NYT, EdSurge, or Pew Research, could be published as a newsroom piece.
+Score 5-7 when: Decent source but light on data or slightly opinion-driven.
+Score 1-4 when: Opinion piece, low-quality blog, no data, sensationalist or clickbait.
+
+TIMELINESS
+Score 8-10 when: Published in last 24 hours, actively trending on search or social.
+Score 5-7 when: Published in last 3 days, some relevance but not breaking.
+Score 1-4 when: Older than 3 days, evergreen topic with no current hook.
+
+Return ONLY valid JSON. No markdown fences. No extra text before or after the JSON.

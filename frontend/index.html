@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wiingy Story Finder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#534AB7',
+            teal: '#0F6E56',
+            amber: '#BA7517',
+            green: '#3B6D11',
+            red: '#E24B4A',
+            bg: '#f9f9f8',
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { background: #f9f9f8; }
+    .score-bar-fill { transition: width 0.4s ease; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    /* ── helpers ── */
+    function api(path, opts = {}) {
+      return fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      }).then(r => {
+        if (!r.ok) throw new Error(`API error ${r.status}`);
+        return r;
+      });
+    }
+
+    function downloadCsv(path) {
+      const a = document.createElement('a');
+      a.href = path;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function fmtDate(d) {
+      if (!d) return '';
+      const p = new Date(d);
+      if (isNaN(p)) return d;
+      return p.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function defaultFrom() {
+      const d = new Date(); d.setDate(d.getDate() - 7);
+      return d.toISOString().slice(0, 10);
+    }
+    function defaultTo() { return new Date().toISOString().slice(0, 10); }
+
+    /* ── Toast ── */
+    function Toasts({ toasts }) {
+      return (
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+          {toasts.map(t => (
+            <div key={t.id} className="bg-red text-white px-4 py-2 rounded shadow-lg text-sm max-w-xs animate-pulse">
+              {t.msg}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    /* ── Spinner ── */
+    function Spinner({ size = 'w-4 h-4' }) {
+      return <svg className={`${size} animate-spin`} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="30 70" strokeLinecap="round"/></svg>;
+    }
+
+    /* ── Pill ── */
+    function Pill({ text, onRemove, color = 'bg-brand/10 text-brand' }) {
+      return (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
+          {text}
+          {onRemove && <button onClick={onRemove} className="ml-0.5 hover:text-red">×</button>}
+        </span>
+      );
+    }
+
+    /* ── Heart ── */
+    function Heart({ filled, onClick }) {
+      return (
+        <button onClick={onClick} className="text-xl leading-none hover:scale-110 transition-transform" title={filled ? 'Remove from favourites' : 'Save to favourites'}>
+          {filled
+            ? <svg className="w-5 h-5 text-red fill-current" viewBox="0 0 20 20"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>
+            : <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>
+          }
+        </button>
+      );
+    }
+
+    /* ── Score Bar ── */
+    function ScoreBar({ label, score, color }) {
+      const pct = Math.min(Math.max((score / 10) * 100, 0), 100);
+      return (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="w-32 text-gray-600 shrink-0">{label}</span>
+          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full score-bar-fill ${color}`} style={{ width: `${pct}%` }}></div>
+          </div>
+          <span className="w-8 text-right font-semibold text-gray-700">{score}/10</span>
+        </div>
+      );
+    }
+
+    /* ── Story Card ── */
+    function StoryCard({ story, onScore, onAngle, onFav, scoringId, anglingId }) {
+      const [expanded, setExpanded] = useState(false);
+      const scored = story.overall_score != null;
+      const angle = story.wiingy_angle;
+
+      return (
+        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <a href={story.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-gray-900 hover:text-brand leading-snug block">
+                {story.title}
+              </a>
+              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                <span>{story.source}</span>
+                {story.published && <><span>·</span><span>{fmtDate(story.published)}</span></>}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {story.keyword && <Pill text={story.keyword} color="bg-gray-100 text-gray-600" />}
+              <Heart filled={!!story.is_favourite} onClick={() => onFav(story.id)} />
+            </div>
+          </div>
+
+          {scored && (
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-gray-500">Overall</span>
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-brand text-white text-xs font-bold">{story.overall_score?.toFixed?.(1) ?? story.overall_score}</span>
+                {story.category && <Pill text={story.category} color="bg-teal/10 text-teal" />}
+              </div>
+              <ScoreBar label="Brand Relevance" score={story.brand_relevance_score} color="bg-brand" />
+              <ScoreBar label="Journalistic Value" score={story.journalistic_value_score} color="bg-green" />
+              <ScoreBar label="Timeliness" score={story.timeliness_score} color="bg-amber" />
+              <button onClick={() => setExpanded(!expanded)} className="text-xs text-brand hover:underline mt-1">
+                {expanded ? 'Hide reasons' : 'Why this score?'}
+              </button>
+              {expanded && (
+                <div className="text-xs text-gray-600 space-y-1 bg-gray-50 rounded p-3 mt-1">
+                  <p><strong>Brand Relevance:</strong> {story.brand_relevance_reason}</p>
+                  <p><strong>Journalistic Value:</strong> {story.journalistic_value_reason}</p>
+                  <p><strong>Timeliness:</strong> {story.timeliness_reason}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {angle && (
+            <blockquote className="border-l-4 border-brand pl-3 text-sm text-gray-700 italic bg-brand/5 rounded-r py-2 pr-3">
+              <span className="text-xs font-semibold text-brand not-italic block mb-0.5">Wiingy Newsroom angle</span>
+              {angle}
+            </blockquote>
+          )}
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {!scored && (
+              <button onClick={() => onScore(story.id)} disabled={scoringId === story.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand/90 disabled:opacity-50">
+                {scoringId === story.id ? <><Spinner /> Scoring...</> : 'Get Score'}
+              </button>
+            )}
+            {!angle && (
+              <button onClick={() => onAngle(story.id)} disabled={anglingId === story.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded hover:bg-brand/20 disabled:opacity-50">
+                {anglingId === story.id ? <><Spinner /> Generating...</> : 'Get Content Angle'}
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* ── App ── */
+    function App() {
+      const [tab, setTab] = useState('search');
+      const [toasts, setToasts] = useState([]);
+      const toastId = useRef(0);
+
+      /* search state */
+      const [keywords, setKeywords] = useState([]);
+      const [kwInput, setKwInput] = useState('');
+      const [dateFrom, setDateFrom] = useState(defaultFrom);
+      const [dateTo, setDateTo] = useState(defaultTo);
+      const [searching, setSearching] = useState(false);
+      const [stories, setStories] = useState([]);
+      const [searchMeta, setSearchMeta] = useState(null);
+      const [sortBy, setSortBy] = useState('recent');
+      const [scoringId, setScoringId] = useState(null);
+      const [anglingId, setAnglingId] = useState(null);
+      const [batchProgress, setBatchProgress] = useState(null);
+
+      /* fav state */
+      const [favs, setFavs] = useState([]);
+      const [favsLoading, setFavsLoading] = useState(false);
+      const [angleProgress, setAngleProgress] = useState(null);
+
+      /* history state */
+      const [searches, setSearches] = useState([]);
+      const [histLoading, setHistLoading] = useState(false);
+
+      const toast = useCallback((msg) => {
+        const id = ++toastId.current;
+        setToasts(t => [...t, { id, msg }]);
+        setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
+      }, []);
+
+      const favCount = favs.length || stories.filter(s => s.is_favourite).length;
+
+      /* search */
+      async function doSearch() {
+        if (!keywords.length) return;
+        setSearching(true);
+        setSearchMeta(null);
+        setStories([]);
+        try {
+          const r = await api('/api/search', {
+            method: 'POST',
+            body: JSON.stringify({ keywords, date_from: dateFrom, date_to: dateTo }),
+          });
+          const data = await r.json();
+          setStories(data.stories);
+          setSearchMeta({ searchId: data.search_id, total: data.total, keywords: [...keywords] });
+        } catch (e) { toast('Search failed: ' + e.message); }
+        setSearching(false);
+      }
+
+      function addKeyword(e) {
+        if (e.key === 'Enter' && kwInput.trim() && keywords.length < 10) {
+          e.preventDefault();
+          const kw = kwInput.trim();
+          if (!keywords.includes(kw)) setKeywords([...keywords, kw]);
+          setKwInput('');
+        }
+      }
+
+      async function scoreOne(id) {
+        setScoringId(id);
+        try {
+          const r = await api(`/api/stories/${id}/score`, { method: 'POST' });
+          const s = await r.json();
+          setStories(prev => prev.map(x => x.id === id ? { ...x, ...s } : x));
+        } catch (e) { toast('Scoring failed'); }
+        setScoringId(null);
+      }
+
+      async function angleOne(id) {
+        setAnglingId(id);
+        try {
+          const r = await api(`/api/stories/${id}/angle`, { method: 'POST' });
+          const s = await r.json();
+          setStories(prev => prev.map(x => x.id === id ? { ...x, ...s } : x));
+        } catch (e) { toast('Angle generation failed'); }
+        setAnglingId(null);
+      }
+
+      async function scoreAll() {
+        const unscored = stories.filter(s => s.overall_score == null);
+        if (!unscored.length) return;
+        setBatchProgress({ done: 0, total: unscored.length });
+        for (let i = 0; i < unscored.length; i++) {
+          try {
+            const r = await api(`/api/stories/${unscored[i].id}/score`, { method: 'POST' });
+            const s = await r.json();
+            setStories(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x));
+          } catch (e) { /* continue */ }
+          setBatchProgress({ done: i + 1, total: unscored.length });
+        }
+        setBatchProgress(null);
+      }
+
+      async function toggleFav(id) {
+        try {
+          const r = await api(`/api/stories/${id}/favourite`, { method: 'POST' });
+          const data = await r.json();
+          setStories(prev => prev.map(x => x.id === id ? { ...x, is_favourite: data.is_favourite ? 1 : 0 } : x));
+          setFavs(prev => data.is_favourite ? prev : prev.filter(x => x.id !== id));
+        } catch (e) { toast('Failed to update favourite'); }
+      }
+
+      const sorted = [...stories].sort((a, b) => {
+        if (sortBy === 'relevant') return (b.overall_score || 0) - (a.overall_score || 0);
+        return new Date(b.published || 0) - new Date(a.published || 0);
+      });
+
+      /* favourites */
+      async function loadFavs() {
+        setFavsLoading(true);
+        try {
+          const r = await api('/api/favourites');
+          setFavs(await r.json());
+        } catch (e) { toast('Failed to load favourites'); }
+        setFavsLoading(false);
+      }
+
+      async function angleAllFavs() {
+        const need = favs.filter(f => !f.wiingy_angle);
+        if (!need.length) return;
+        setAngleProgress({ done: 0, total: need.length });
+        for (let i = 0; i < need.length; i++) {
+          try {
+            const r = await api(`/api/stories/${need[i].id}/angle`, { method: 'POST' });
+            const s = await r.json();
+            setFavs(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x));
+          } catch (e) { /* continue */ }
+          setAngleProgress({ done: i + 1, total: need.length });
+        }
+        setAngleProgress(null);
+      }
+
+      async function favScoreOne(id) {
+        setScoringId(id);
+        try {
+          const r = await api(`/api/stories/${id}/score`, { method: 'POST' });
+          const s = await r.json();
+          setFavs(prev => prev.map(x => x.id === id ? { ...x, ...s } : x));
+        } catch (e) { toast('Scoring failed'); }
+        setScoringId(null);
+      }
+
+      async function favAngleOne(id) {
+        setAnglingId(id);
+        try {
+          const r = await api(`/api/stories/${id}/angle`, { method: 'POST' });
+          const s = await r.json();
+          setFavs(prev => prev.map(x => x.id === id ? { ...x, ...s } : x));
+        } catch (e) { toast('Angle generation failed'); }
+        setAnglingId(null);
+      }
+
+      async function favToggle(id) {
+        try {
+          const r = await api(`/api/stories/${id}/favourite`, { method: 'POST' });
+          const data = await r.json();
+          if (!data.is_favourite) setFavs(prev => prev.filter(x => x.id !== id));
+          setStories(prev => prev.map(x => x.id === id ? { ...x, is_favourite: data.is_favourite ? 1 : 0 } : x));
+        } catch (e) { toast('Failed to update favourite'); }
+      }
+
+      /* history */
+      async function loadHistory() {
+        setHistLoading(true);
+        try {
+          const r = await api('/api/searches');
+          setSearches(await r.json());
+        } catch (e) { toast('Failed to load history'); }
+        setHistLoading(false);
+      }
+
+      async function viewHistoryStories(s) {
+        setTab('search');
+        const kws = Array.isArray(s.keywords) ? s.keywords : JSON.parse(s.keywords || '[]');
+        setKeywords(kws);
+        setDateFrom(s.date_from);
+        setDateTo(s.date_to);
+        setSearchMeta({ searchId: s.id, total: s.story_count, keywords: kws });
+        try {
+          const r = await api(`/api/search/${s.id}/stories`);
+          setStories(await r.json());
+        } catch (e) { toast('Failed to load stories'); }
+      }
+
+      useEffect(() => { if (tab === 'favs') loadFavs(); }, [tab]);
+      useEffect(() => { if (tab === 'history') loadHistory(); }, [tab]);
+
+      /* ── render ── */
+      return (
+        <div className="min-h-screen bg-bg">
+          <Toasts toasts={toasts} />
+
+          {/* Nav */}
+          <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
+            <div className="max-w-5xl mx-auto px-4 flex items-center h-14 gap-6">
+              <span className="font-bold text-brand text-lg tracking-tight">Wiingy</span>
+              <div className="flex gap-1 ml-4">
+                {[['search','Search'],['favs','Favourites'],['history','History']].map(([k,label]) => (
+                  <button key={k} onClick={() => setTab(k)}
+                    className={`px-3 py-3.5 text-sm font-medium border-b-2 transition-colors ${tab===k ? 'border-brand text-brand' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    {label}
+                    {k === 'favs' && favCount > 0 && (
+                      <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red text-white leading-none">{favCount}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </nav>
+
+          <main className="max-w-5xl mx-auto px-4 py-6">
+
+            {/* ── SEARCH TAB ── */}
+            {tab === 'search' && (
+              <div className="space-y-5">
+                <h1 className="text-2xl font-bold text-gray-900">Wiingy Story Finder</h1>
+
+                {/* Input area */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                  <label className="text-sm font-medium text-gray-700">Keywords</label>
+                  <div className="flex flex-wrap items-center gap-2 border border-gray-200 rounded px-3 py-2 focus-within:ring-2 focus-within:ring-brand/30">
+                    {keywords.map(k => <Pill key={k} text={k} onRemove={() => setKeywords(keywords.filter(x=>x!==k))} />)}
+                    {keywords.length < 10 && (
+                      <input value={kwInput} onChange={e => setKwInput(e.target.value)} onKeyDown={addKeyword}
+                        placeholder={keywords.length ? '' : 'Type a keyword and press Enter'}
+                        className="flex-1 min-w-[120px] outline-none text-sm py-1" />
+                    )}
+                  </div>
+                  {keywords.length >= 10 && <p className="text-xs text-amber">Maximum 10 keywords reached</p>}
+
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <label className="text-xs text-gray-500">From</label>
+                      <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="block border border-gray-200 rounded px-3 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">To</label>
+                      <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="block border border-gray-200 rounded px-3 py-1.5 text-sm" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <button onClick={doSearch} disabled={!keywords.length || searching}
+                      className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-brand rounded hover:bg-brand/90 disabled:opacity-50">
+                      {searching ? <><Spinner /> Searching...</> : 'Search'}
+                    </button>
+                    <p className="text-xs text-gray-400 mt-1.5">Fetching up to 10 most recent stories per keyword from Google News US</p>
+                  </div>
+                </div>
+
+                {/* Results */}
+                {searchMeta && (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-gray-600">
+                        Found <strong>{searchMeta.total}</strong> stories for <strong>{searchMeta.keywords.join(', ')}</strong>
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1">
+                          <option value="recent">Most Recent</option>
+                          <option value="relevant">Most Relevant</option>
+                        </select>
+                        <button onClick={scoreAll} disabled={!!batchProgress}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand/90 disabled:opacity-50">
+                          {batchProgress ? <><Spinner /> Scoring {batchProgress.done}/{batchProgress.total}</> : 'Get All Scores'}
+                        </button>
+                        <button onClick={() => downloadCsv(`/api/export/stories/${searchMeta.searchId}`)}
+                          className="px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded hover:bg-brand/20">
+                          Download Stories CSV
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4">
+                      {sorted.map(s => (
+                        <StoryCard key={s.id} story={s} onScore={scoreOne} onAngle={angleOne} onFav={toggleFav} scoringId={scoringId} anglingId={anglingId} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── FAVOURITES TAB ── */}
+            {tab === 'favs' && (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Saved Stories
+                    {favs.length > 0 && <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-brand text-white">{favs.length}</span>}
+                  </h1>
+                  {favs.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={angleAllFavs} disabled={!!angleProgress}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand/90 disabled:opacity-50">
+                        {angleProgress ? <><Spinner /> Generating angles... {angleProgress.done} of {angleProgress.total}</> : 'Get Angles for All'}
+                      </button>
+                      <button onClick={() => downloadCsv('/api/export/favourites')}
+                        className="px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded hover:bg-brand/20">
+                        Download All as CSV
+                      </button>
+                      <button onClick={() => downloadCsv('/api/export/favourites')}
+                        className="px-3 py-1.5 text-xs font-medium text-teal bg-teal/10 rounded hover:bg-teal/20">
+                        Download Angles CSV
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {favsLoading ? (
+                  <div className="flex justify-center py-12"><Spinner size="w-6 h-6" /></div>
+                ) : favs.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">
+                    <p className="text-lg">No saved stories yet.</p>
+                    <p className="text-sm mt-1">Heart a story in Search to save it here.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {favs.map(s => (
+                      <StoryCard key={s.id} story={{...s, is_favourite: 1}} onScore={favScoreOne} onAngle={favAngleOne} onFav={favToggle} scoringId={scoringId} anglingId={anglingId} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── HISTORY TAB ── */}
+            {tab === 'history' && (
+              <div className="space-y-5">
+                <h1 className="text-2xl font-bold text-gray-900">Search History</h1>
+
+                {histLoading ? (
+                  <div className="flex justify-center py-12"><Spinner size="w-6 h-6" /></div>
+                ) : searches.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">
+                    <p className="text-lg">No searches yet.</p>
+                    <p className="text-sm mt-1">Go to Search to get started.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {searches.map(s => {
+                      const kws = Array.isArray(s.keywords) ? s.keywords : (() => { try { return JSON.parse(s.keywords); } catch { return [s.keywords]; } })();
+                      return (
+                        <div key={s.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap gap-1.5">
+                                {kws.map(k => <Pill key={k} text={k} color="bg-brand/10 text-brand" />)}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {fmtDate(s.date_from)} — {fmtDate(s.date_to)} · {s.story_count} stories · {fmtDate(s.created_at)}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => viewHistoryStories(s)} className="px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand/90">
+                                View Stories
+                              </button>
+                              <button onClick={() => downloadCsv(`/api/export/stories/${s.id}`)} className="px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded hover:bg-brand/20">
+                                Download CSV
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
