@@ -1,4 +1,5 @@
 import io
+import os
 import csv
 import json
 from datetime import date
@@ -6,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -194,3 +195,13 @@ async def api_export_favourites():
 @app.get("/api/status")
 async def api_status():
     return {"status": "idle"}
+
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_frontend():
+    html_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "frontend", "index.html"
+    )
+    with open(html_path, "r") as f:
+        return HTMLResponse(content=f.read())
