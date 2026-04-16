@@ -22,11 +22,21 @@ def generate_angle(story):
 
         system_prompt = (
             brand_context + "\n\n"
-            "Write a 1-2 sentence Wiingy Newsroom content angle that positions "
-            "Wiingy as a credible expert voice on this story. The angle must "
-            "reference a specific Wiingy platform data point or the tutor network. "
-            "It must sound journalistic and authoritative, never promotional. "
-            "Return only the angle text, nothing else."
+            "You are an education journalist writing a content angle for the "
+            "Wiingy Newsroom. Your job is to find the genuine learning insight "
+            "in this news story and express it in 2-3 sentences.\n\n"
+            "Follow this structure strictly:\n"
+            "- Lead with the broader educational truth or trend the story reveals\n"
+            "- Connect it to what students, parents, or learners are experiencing\n"
+            "- Only in the final sentence, and only if it fits naturally, add a "
+            "brief Wiingy tie-in referencing tutor demand, subject trends, or "
+            "platform observations. If a Wiingy reference does not fit naturally, "
+            "write only 2 sentences and omit it entirely.\n\n"
+            "Never start with Wiingy. Never lead with statistics. Never sound "
+            "promotional. Write like a journalist, not a marketer. The angle "
+            "should read as an interesting educational observation that stands "
+            "on its own merit.\n\n"
+            "Return only the angle text. No labels, no preamble, no explanation."
         )
 
         user_message = (

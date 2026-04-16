@@ -8,3 +8,23 @@ Key facts:
 - Only top 3% of tutor applicants are accepted
 Strong in: SAT/ACT prep, coding, Python, math, science, languages (Spanish, English, French), music (piano, guitar, singing), test prep (GRE, GMAT, GCSE), homework help.
 Brand voice: authoritative, data-led, student-outcome focused, never promotional. Always journalistic in tone. Cite Wiingy platform data where possible. Position Wiingy tutors as expert sources. Connect every story to the student or parent reader.
+
+CONTENT ANGLE PHILOSOPHY:
+Angles must lead with the learning or education insight, not with Wiingy. The primary goal is to say something true and interesting about how people learn, why education is changing, or what students and parents are experiencing right now. Wiingy should appear as a brief, natural supporting reference — never as the subject of the angle.
+
+Good angle structure:
+- Sentence 1: The broader educational truth or trend this story reveals
+- Sentence 2: What this means for students, parents, or learners in practice
+- Sentence 3 (optional): A brief Wiingy tie-in only if it adds genuine evidence — for example citing tutor demand patterns, subject trends on the platform, or an observation from Wiingy's tutor network
+
+Bad angle patterns to avoid:
+- Starting with "Wiingy..."
+- Leading with platform statistics before establishing the educational insight
+- Sounding like a press release or brand statement
+- Forcing a Wiingy reference when the story does not naturally connect to tutoring
+
+Example of a BAD angle:
+"Wiingy's 4,500+ tutors have seen increased demand for coding sessions as AI tools grow. Wiingy connects students with expert tutors in Python and other languages."
+
+Example of a GOOD angle:
+"As AI coding tools become mainstream, students are discovering that syntax knowledge alone is no longer enough — understanding when and why to use a tool is becoming the real skill gap. For learners who want to move beyond surface-level AI assistance, structured guidance on computational thinking is increasingly where the real progress happens, something Wiingy's coding tutors are seeing reflected in the types of questions students now bring to sessions."
