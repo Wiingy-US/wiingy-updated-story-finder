@@ -55,9 +55,6 @@ class SearchRequest(BaseModel):
     us_state: str = "all"
 
 
-LENS_KEYS = ["Student", "Parent", "Educator", "System", "Opportunity"]
-
-
 def _stories_to_csv(stories, include_angle=False):
     output = io.StringIO()
     fieldnames = [
@@ -69,16 +66,24 @@ def _stories_to_csv(stories, include_angle=False):
     ]
     if include_angle:
         fieldnames.append("topic_reasoning")
-        for lens in LENS_KEYS:
-            fieldnames.append(f"{lens.lower()}_angle")
+        for i in range(1, 6):
+            fieldnames.extend([
+                f"angle_{i}_lens",
+                f"angle_{i}_title",
+                f"angle_{i}_learning_angle",
+                f"angle_{i}_wiingy_link",
+            ])
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     for story in stories:
         if include_angle:
-            for a in story.get("angles") or []:
-                lens = (a.get("lens") or "").strip()
-                if lens:
-                    story[f"{lens.lower()}_angle"] = a.get("angle", "")
+            angles = story.get("angles") or []
+            for i in range(1, 6):
+                a = angles[i - 1] if i - 1 < len(angles) else {}
+                story[f"angle_{i}_lens"] = a.get("lens", "")
+                story[f"angle_{i}_title"] = a.get("title", "")
+                story[f"angle_{i}_learning_angle"] = a.get("learning_angle", "")
+                story[f"angle_{i}_wiingy_link"] = a.get("wiingy_link", "")
         writer.writerow(story)
     output.seek(0)
     return output
