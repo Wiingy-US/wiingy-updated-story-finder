@@ -56,10 +56,20 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             story_id INTEGER,
             topic_reasoning TEXT,
+            recommended_style TEXT,
+            style_reason TEXT,
             angles TEXT,
             created_at TEXT
         )
     """)
+
+    # Safe migrations for existing databases
+    cursor.execute("PRAGMA table_info(content_angles)")
+    cols = {row[1] for row in cursor.fetchall()}
+    if "recommended_style" not in cols:
+        cursor.execute("ALTER TABLE content_angles ADD COLUMN recommended_style TEXT")
+    if "style_reason" not in cols:
+        cursor.execute("ALTER TABLE content_angles ADD COLUMN style_reason TEXT")
 
     conn.commit()
     conn.close()
@@ -135,12 +145,21 @@ def update_story_scores(story_id, scores_dict):
     conn.close()
 
 
-def save_content_angle(story_id, topic_reasoning, angles):
+def save_content_angle(story_id, topic_reasoning, recommended_style, style_reason, angles):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO content_angles (story_id, topic_reasoning, angles, created_at) VALUES (?, ?, ?, ?)",
-        (story_id, topic_reasoning, json.dumps(angles or []), datetime.utcnow().isoformat())
+        """INSERT INTO content_angles
+           (story_id, topic_reasoning, recommended_style, style_reason, angles, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            story_id,
+            topic_reasoning,
+            recommended_style,
+            style_reason,
+            json.dumps(angles or []),
+            datetime.utcnow().isoformat(),
+        )
     )
     conn.commit()
     conn.close()

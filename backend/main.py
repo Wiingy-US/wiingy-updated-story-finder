@@ -65,13 +65,14 @@ def _stories_to_csv(stories, include_angle=False):
         "is_favourite",
     ]
     if include_angle:
-        fieldnames.append("topic_reasoning")
+        fieldnames.extend(["topic_reasoning", "recommended_style", "style_reason"])
         for i in range(1, 6):
             fieldnames.extend([
                 f"angle_{i}_lens",
                 f"angle_{i}_title",
                 f"angle_{i}_learning_angle",
                 f"angle_{i}_wiingy_link",
+                f"angle_{i}_suggested_sources",
             ])
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
@@ -84,6 +85,7 @@ def _stories_to_csv(stories, include_angle=False):
                 story[f"angle_{i}_title"] = a.get("title", "")
                 story[f"angle_{i}_learning_angle"] = a.get("learning_angle", "")
                 story[f"angle_{i}_wiingy_link"] = a.get("wiingy_link", "")
+                story[f"angle_{i}_suggested_sources"] = a.get("suggested_sources", "")
         writer.writerow(story)
     output.seek(0)
     return output
@@ -139,10 +141,14 @@ async def api_generate_angle(story_id: int):
         story = dict(story)
     angled = generate_angle(dict(story))
     topic_reasoning = angled.get("topic_reasoning", "")
+    recommended_style = angled.get("recommended_style", "")
+    style_reason = angled.get("style_reason", "")
     angles = angled.get("angles", [])
-    save_content_angle(story_id, topic_reasoning, angles)
+    save_content_angle(story_id, topic_reasoning, recommended_style, style_reason, angles)
     result = dict(get_story_by_id(story_id))
     result["topic_reasoning"] = topic_reasoning
+    result["recommended_style"] = recommended_style
+    result["style_reason"] = style_reason
     result["angles"] = angles
     return result
 
@@ -156,17 +162,24 @@ async def api_toggle_favourite(story_id: int):
     return {"story_id": story_id, "is_favourite": bool(new_value)}
 
 
+def _attach_angle(target, angle):
+    if angle:
+        target["topic_reasoning"] = angle.get("topic_reasoning")
+        target["recommended_style"] = angle.get("recommended_style")
+        target["style_reason"] = angle.get("style_reason")
+        target["angles"] = angle.get("angles") or []
+    else:
+        target["topic_reasoning"] = None
+        target["recommended_style"] = None
+        target["style_reason"] = None
+        target["angles"] = []
+
+
 @app.get("/api/favourites")
 async def api_favourites():
     favourites = get_all_favourites()
     for fav in favourites:
-        angle = get_angle_by_story_id(fav["id"])
-        if angle:
-            fav["topic_reasoning"] = angle.get("topic_reasoning")
-            fav["angles"] = angle.get("angles") or []
-        else:
-            fav["topic_reasoning"] = None
-            fav["angles"] = []
+        _attach_angle(fav, get_angle_by_story_id(fav["id"]))
     return favourites
 
 
@@ -189,8 +202,7 @@ async def api_export_angles(search_id: int):
     for story in stories:
         angle = get_angle_by_story_id(story["id"])
         if angle:
-            story["topic_reasoning"] = angle.get("topic_reasoning")
-            story["angles"] = angle.get("angles") or []
+            _attach_angle(story, angle)
             stories_with_angles.append(story)
     output = _stories_to_csv(stories_with_angles, include_angle=True)
     filename = f"wiingy-angles-{date.today().isoformat()}.csv"
@@ -205,13 +217,7 @@ async def api_export_angles(search_id: int):
 async def api_export_favourites():
     favourites = get_all_favourites()
     for fav in favourites:
-        angle = get_angle_by_story_id(fav["id"])
-        if angle:
-            fav["topic_reasoning"] = angle.get("topic_reasoning")
-            fav["angles"] = angle.get("angles") or []
-        else:
-            fav["topic_reasoning"] = None
-            fav["angles"] = []
+        _attach_angle(fav, get_angle_by_story_id(fav["id"]))
     output = _stories_to_csv(favourites, include_angle=True)
     filename = f"wiingy-favourites-{date.today().isoformat()}.csv"
     return StreamingResponse(

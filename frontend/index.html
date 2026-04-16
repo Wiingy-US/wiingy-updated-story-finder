@@ -201,6 +201,13 @@
       'Opportunity': 'border-red',
     };
 
+    const STYLE_BADGE = {
+      'POLICY IMPACT': 'bg-blue-600 text-white',
+      'CULTURAL THINK-PIECE': 'bg-brand text-white',
+      'NEWS CONSEQUENCE': 'bg-teal text-white',
+      'UNKNOWN': 'bg-gray-500 text-white',
+    };
+
     function copyAnglePackage(a) {
       const text = `${a.title || ''}\n\n${a.learning_angle || ''}\n\n${a.wiingy_link || ''}`.trim();
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -260,6 +267,22 @@
               <div className="flex items-start gap-2">
                 <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand text-white text-xs font-bold" title="Wiingy">W</span>
                 <p className="text-sm italic text-gray-700 leading-relaxed">{angle.wiingy_link}</p>
+              </div>
+            </div>
+          )}
+
+          {angle.suggested_sources && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Suggested Sources</p>
+              <div className="flex flex-wrap gap-1.5">
+                {angle.suggested_sources.split(',').map((src, i) => {
+                  const trimmed = src.trim();
+                  return trimmed ? (
+                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
+                      {trimmed}
+                    </span>
+                  ) : null;
+                })}
               </div>
             </div>
           )}
@@ -323,6 +346,19 @@
                   <blockquote className="border-l-4 border-teal pl-3 text-sm italic text-gray-600 bg-gray-50 rounded-r py-2 pr-3">
                     {topicReasoning}
                   </blockquote>
+                </div>
+              )}
+              {hasAngles && story.recommended_style && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Recommended Content Style</p>
+                  <div className="flex flex-wrap items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide ${STYLE_BADGE[story.recommended_style] || STYLE_BADGE['UNKNOWN']}`}>
+                      {story.recommended_style}
+                    </span>
+                    {story.style_reason && (
+                      <span className="text-xs italic text-gray-600 flex-1 min-w-[200px]">{story.style_reason}</span>
+                    )}
+                  </div>
                 </div>
               )}
               {hasAngles && (
