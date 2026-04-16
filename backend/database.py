@@ -55,7 +55,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS content_angles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             story_id INTEGER,
-            wiingy_angle TEXT,
+            topic_reasoning TEXT,
+            angles TEXT,
             created_at TEXT
         )
     """)
@@ -134,12 +135,12 @@ def update_story_scores(story_id, scores_dict):
     conn.close()
 
 
-def save_content_angle(story_id, wiingy_angle):
+def save_content_angle(story_id, topic_reasoning, angles):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO content_angles (story_id, wiingy_angle, created_at) VALUES (?, ?, ?)",
-        (story_id, wiingy_angle, datetime.utcnow().isoformat())
+        "INSERT INTO content_angles (story_id, topic_reasoning, angles, created_at) VALUES (?, ?, ?, ?)",
+        (story_id, topic_reasoning, json.dumps(angles or []), datetime.utcnow().isoformat())
     )
     conn.commit()
     conn.close()
@@ -210,4 +211,11 @@ def get_angle_by_story_id(story_id):
     )
     row = cursor.fetchone()
     conn.close()
-    return dict(row) if row else None
+    if not row:
+        return None
+    result = dict(row)
+    try:
+        result["angles"] = json.loads(result["angles"]) if result.get("angles") else []
+    except (json.JSONDecodeError, TypeError):
+        result["angles"] = []
+    return result

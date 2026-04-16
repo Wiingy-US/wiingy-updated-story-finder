@@ -55,6 +55,9 @@ class SearchRequest(BaseModel):
     us_state: str = "all"
 
 
+LENS_KEYS = ["Student", "Parent", "Educator", "System", "Opportunity"]
+
+
 def _stories_to_csv(stories, include_angle=False):
     output = io.StringIO()
     fieldnames = [
@@ -65,10 +68,17 @@ def _stories_to_csv(stories, include_angle=False):
         "is_favourite",
     ]
     if include_angle:
-        fieldnames.append("wiingy_angle")
+        fieldnames.append("topic_reasoning")
+        for lens in LENS_KEYS:
+            fieldnames.append(f"{lens.lower()}_angle")
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     for story in stories:
+        if include_angle:
+            for a in story.get("angles") or []:
+                lens = (a.get("lens") or "").strip()
+                if lens:
+                    story[f"{lens.lower()}_angle"] = a.get("angle", "")
         writer.writerow(story)
     output.seek(0)
     return output
@@ -123,10 +133,12 @@ async def api_generate_angle(story_id: int):
         story = get_story_by_id(story_id)
         story = dict(story)
     angled = generate_angle(dict(story))
-    save_content_angle(story_id, angled["wiingy_angle"])
-    result = get_story_by_id(story_id)
-    result = dict(result)
-    result["wiingy_angle"] = angled["wiingy_angle"]
+    topic_reasoning = angled.get("topic_reasoning", "")
+    angles = angled.get("angles", [])
+    save_content_angle(story_id, topic_reasoning, angles)
+    result = dict(get_story_by_id(story_id))
+    result["topic_reasoning"] = topic_reasoning
+    result["angles"] = angles
     return result
 
 
@@ -144,7 +156,12 @@ async def api_favourites():
     favourites = get_all_favourites()
     for fav in favourites:
         angle = get_angle_by_story_id(fav["id"])
-        fav["wiingy_angle"] = angle["wiingy_angle"] if angle else None
+        if angle:
+            fav["topic_reasoning"] = angle.get("topic_reasoning")
+            fav["angles"] = angle.get("angles") or []
+        else:
+            fav["topic_reasoning"] = None
+            fav["angles"] = []
     return favourites
 
 
@@ -167,7 +184,8 @@ async def api_export_angles(search_id: int):
     for story in stories:
         angle = get_angle_by_story_id(story["id"])
         if angle:
-            story["wiingy_angle"] = angle["wiingy_angle"]
+            story["topic_reasoning"] = angle.get("topic_reasoning")
+            story["angles"] = angle.get("angles") or []
             stories_with_angles.append(story)
     output = _stories_to_csv(stories_with_angles, include_angle=True)
     filename = f"wiingy-angles-{date.today().isoformat()}.csv"
@@ -183,7 +201,12 @@ async def api_export_favourites():
     favourites = get_all_favourites()
     for fav in favourites:
         angle = get_angle_by_story_id(fav["id"])
-        fav["wiingy_angle"] = angle["wiingy_angle"] if angle else None
+        if angle:
+            fav["topic_reasoning"] = angle.get("topic_reasoning")
+            fav["angles"] = angle.get("angles") or []
+        else:
+            fav["topic_reasoning"] = None
+            fav["angles"] = []
     output = _stories_to_csv(favourites, include_angle=True)
     filename = f"wiingy-favourites-{date.today().isoformat()}.csv"
     return StreamingResponse(

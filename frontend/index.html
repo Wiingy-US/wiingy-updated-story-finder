@@ -185,11 +185,20 @@
       );
     }
 
+    const LENS_COLORS = {
+      'Student': 'bg-brand/10 text-brand',
+      'Parent': 'bg-amber/10 text-amber',
+      'Educator': 'bg-green/10 text-green',
+      'System': 'bg-teal/10 text-teal',
+      'Opportunity': 'bg-red/10 text-red',
+    };
+
     /* ── Story Card ── */
     function StoryCard({ story, onScore, onAngle, onFav, scoringId, anglingId }) {
       const [expanded, setExpanded] = useState(false);
       const scored = story.overall_score != null;
-      const angle = story.wiingy_angle;
+      const hasAngles = Array.isArray(story.angles) && story.angles.length > 0;
+      const topicReasoning = story.topic_reasoning;
 
       return (
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
@@ -232,11 +241,30 @@
             </div>
           )}
 
-          {angle && (
-            <blockquote className="border-l-4 border-brand pl-3 text-sm text-gray-700 italic bg-brand/5 rounded-r py-2 pr-3">
-              <span className="text-xs font-semibold text-brand not-italic block mb-0.5">Wiingy Newsroom angle</span>
-              {angle}
-            </blockquote>
+          {(topicReasoning || hasAngles) && (
+            <div className="space-y-3 pt-1">
+              {topicReasoning && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Why this topic</p>
+                  <blockquote className="border-l-4 border-teal pl-3 text-sm italic text-gray-600 bg-gray-50 rounded-r py-2 pr-3">
+                    {topicReasoning}
+                  </blockquote>
+                </div>
+              )}
+              {hasAngles && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">5 Content Angles</p>
+                  <div className="grid gap-2">
+                    {story.angles.map((a, i) => (
+                      <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
+                        <Pill text={a.lens} color={LENS_COLORS[a.lens] || 'bg-brand/10 text-brand'} />
+                        <p className="text-sm text-gray-700 leading-relaxed">{a.angle}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="flex flex-wrap gap-2 pt-1">
@@ -245,7 +273,7 @@
                 {scoringId === story.id ? <><Spinner /> Scoring...</> : 'Get Score'}
               </button>
             )}
-            {!angle && (
+            {!hasAngles && (
               <button onClick={() => onAngle(story.id)} disabled={anglingId === story.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded hover:bg-brand/20 disabled:opacity-50">
                 {anglingId === story.id ? <><Spinner /> Generating...</> : 'Get Content Angle'}
               </button>
@@ -379,7 +407,7 @@
       }
 
       async function angleAllFavs() {
-        const need = favs.filter(f => !f.wiingy_angle);
+        const need = favs.filter(f => !Array.isArray(f.angles) || f.angles.length === 0);
         if (!need.length) return;
         setAngleProgress({ done: 0, total: need.length });
         for (let i = 0; i < need.length; i++) {
