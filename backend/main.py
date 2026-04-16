@@ -2,6 +2,7 @@ import io
 import os
 import csv
 import json
+import traceback
 from datetime import date
 from contextlib import asynccontextmanager
 
@@ -65,12 +66,32 @@ class TrendSearchRequest(BaseModel):
 
 
 DEFAULT_TREND_KEYWORDS = [
-    "online tutoring",
+    "tutoring",
     "edtech",
-    "AI in education",
     "SAT prep",
-    "coding for kids",
+    "online learning",
+    "coding",
 ]
+
+
+def _serialize_trends(result):
+    """Convert any non-JSON-serialisable values to strings for safe response."""
+    try:
+        json.dumps(result)
+        return result
+    except (TypeError, ValueError):
+        # Fallback: stringify any non-serialisable values
+        def _clean(v):
+            if isinstance(v, dict):
+                return {str(k): _clean(val) for k, val in v.items()}
+            if isinstance(v, list):
+                return [_clean(item) for item in v]
+            try:
+                json.dumps(v)
+                return v
+            except (TypeError, ValueError):
+                return str(v)
+        return _clean(result)
 
 
 def _stories_to_csv(stories, include_angle=False):
@@ -245,20 +266,36 @@ async def api_export_favourites():
     )
 
 
+# Note: this endpoint may be slow due to pytrends rate limits
 @app.post("/api/trends/search")
 async def api_trends_search(req: TrendSearchRequest):
     try:
         result = fetch_google_trends(
             req.keywords, req.timeframe, "US", req.us_state
         )
-        trend_search_id = save_trend_search(req.keywords, req.timeframe, req.us_state)
-        result["trend_search_id"] = trend_search_id
+        try:
+            trend_search_id = save_trend_search(req.keywords, req.timeframe, req.us_state)
+            result["trend_search_id"] = trend_search_id
+        except Exception as save_err:
+            print(f"[trends] save_trend_search failed: {save_err}")
+        result = _serialize_trends(result)
+        print(f"[trends] /api/trends/search returning: keywords={result.get('keywords')}, "
+              f"iot={len(result.get('interest_over_time') or [])}, "
+              f"rq_keys={list((result.get('related_queries') or {}).keys())}, "
+              f"ibr={len(result.get('interest_by_region') or [])}, "
+              f"error={result.get('error')}")
         return result
     except Exception as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Google Trends unavailable: {str(e)}"
-        )
+        traceback.print_exc()
+        return {
+            "keywords": req.keywords,
+            "timeframe": req.timeframe,
+            "us_state": req.us_state,
+            "interest_over_time": [],
+            "related_queries": {},
+            "interest_by_region": [],
+            "error": f"Google Trends unavailable: {str(e)}",
+        }
 
 
 @app.get("/api/trends/searches")
@@ -273,17 +310,31 @@ async def api_trends_searches():
     return searches
 
 
+# Note: this endpoint may be slow due to pytrends rate limits
 @app.get("/api/trends/default")
 async def api_trends_default():
     try:
-        return fetch_google_trends(
+        result = fetch_google_trends(
             DEFAULT_TREND_KEYWORDS, "today 7-d", "US", "all"
         )
+        result = _serialize_trends(result)
+        print(f"[trends] /api/trends/default returning: keywords={result.get('keywords')}, "
+              f"iot={len(result.get('interest_over_time') or [])}, "
+              f"rq_keys={list((result.get('related_queries') or {}).keys())}, "
+              f"ibr={len(result.get('interest_by_region') or [])}, "
+              f"error={result.get('error')}")
+        return result
     except Exception as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Google Trends unavailable: {str(e)}"
-        )
+        traceback.print_exc()
+        return {
+            "keywords": DEFAULT_TREND_KEYWORDS,
+            "timeframe": "today 7-d",
+            "us_state": "all",
+            "interest_over_time": [],
+            "related_queries": {},
+            "interest_by_region": [],
+            "error": f"Google Trends unavailable: {str(e)}",
+        }
 
 
 @app.get("/api/status")

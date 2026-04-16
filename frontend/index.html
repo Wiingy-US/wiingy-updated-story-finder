@@ -467,7 +467,7 @@
       'bg-green/10 text-green',
       'bg-blue-100 text-blue-700',
     ];
-    const DEFAULT_TREND_KEYWORDS = ['online tutoring', 'edtech', 'AI in education', 'SAT prep', 'coding for kids'];
+    const DEFAULT_TREND_KEYWORDS = ['tutoring', 'edtech', 'SAT prep', 'online learning', 'coding'];
     const TIMEFRAMES = [
       ['now 1-d', 'Past 24 hours'],
       ['today 7-d', 'Past 7 days'],
@@ -662,6 +662,8 @@
       const [trendRegionKeyword, setTrendRegionKeyword] = useState(null);
       const [trendHistory, setTrendHistory] = useState([]);
       const [trendHistoryOpen, setTrendHistoryOpen] = useState(false);
+      const [trendError, setTrendError] = useState(null);
+      const [showRawTrends, setShowRawTrends] = useState(false);
       const trendsLoadedRef = useRef(false);
 
       const toast = useCallback((msg, variant = 'error') => {
@@ -841,18 +843,29 @@
 
       function applyTrendsResult(data) {
         setTrendsData(data);
+        setTrendError(data?.error || null);
         const kws = data?.keywords || [];
         if (kws.length > 0) setTrendRegionKeyword(kws[0]);
       }
 
       async function loadDefaultTrends() {
         setTrendsLoading(true);
+        setTrendError(null);
         try {
           const r = await fetch('/api/trends/default');
-          if (!r.ok) throw new Error('rate-limited');
-          const data = await r.json();
-          applyTrendsResult(data);
+          if (!r.ok) {
+            const text = await r.text();
+            setTrendError(`HTTP ${r.status}: ${text.slice(0, 300)}`);
+            toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
+          } else {
+            const data = await r.json();
+            applyTrendsResult(data);
+            if (data?.error) {
+              toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
+            }
+          }
         } catch (e) {
+          setTrendError(String(e));
           toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
         }
         setTrendsLoading(false);
@@ -861,17 +874,27 @@
       async function doTrendSearch() {
         if (!trendKeywords.length) return;
         setTrendsLoading(true);
+        setTrendError(null);
         try {
           const r = await fetch('/api/trends/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keywords: trendKeywords, timeframe: trendTimeframe, us_state: trendState }),
           });
-          if (!r.ok) throw new Error('rate-limited');
-          const data = await r.json();
-          applyTrendsResult(data);
-          loadTrendHistory();
+          if (!r.ok) {
+            const text = await r.text();
+            setTrendError(`HTTP ${r.status}: ${text.slice(0, 300)}`);
+            toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
+          } else {
+            const data = await r.json();
+            applyTrendsResult(data);
+            if (data?.error) {
+              toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
+            }
+            loadTrendHistory();
+          }
         } catch (e) {
+          setTrendError(String(e));
           toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
         }
         setTrendsLoading(false);
@@ -1092,6 +1115,13 @@
                   </div>
                 </div>
 
+                {trendError && (
+                  <div className="border border-red/50 bg-red/10 text-red rounded-lg p-3 text-sm">
+                    <p className="font-semibold mb-0.5">Trends error</p>
+                    <p className="text-xs break-words">{trendError}</p>
+                  </div>
+                )}
+
                 {/* Interest over time */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Interest Over Time</p>
@@ -1104,11 +1134,26 @@
                     {trendsData && trendsData.interest_over_time && trendsData.interest_over_time.length > 0 ? (
                       <LineChart data={trendsData.interest_over_time} keywords={trendsData.keywords || []} />
                     ) : !trendsLoading ? (
-                      <div className="h-full flex items-center justify-center text-sm text-gray-400">
-                        No trend data available for this period
+                      <div className="h-full flex items-center justify-center text-sm text-gray-500 text-center px-4">
+                        {trendsData && !trendError
+                          ? 'Google Trends returned no data for these keywords in this timeframe. Try broader keywords or a longer timeframe like Past 30 days.'
+                          : 'No trend data available for this period'}
                       </div>
                     ) : null}
                   </div>
+                  {trendsData && (
+                    <div className="pt-1">
+                      <button
+                        onClick={() => setShowRawTrends(!showRawTrends)}
+                        className="text-xs text-brand hover:underline"
+                      >
+                        {showRawTrends ? 'Hide raw response' : 'Show raw response'}
+                      </button>
+                      {showRawTrends && (
+                        <pre className="mt-2 text-[10px] bg-gray-50 border border-gray-200 rounded p-3 overflow-auto max-h-64 whitespace-pre-wrap break-words">{JSON.stringify(trendsData, null, 2)}</pre>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Interest by region */}
