@@ -58,3 +58,28 @@ def fetch_google_news_rss(keywords, date_from, date_to, us_state="all"):
     )
 
     return deduplicated
+
+
+def fetch_all_news(keywords, date_from, date_to, us_state="all"):
+    from backend.agents.guardian_scraper import fetch_guardian_news
+
+    rss_stories = fetch_google_news_rss(keywords, date_from, date_to, us_state)
+    guardian_stories = fetch_guardian_news(keywords, date_from, date_to, us_state)
+
+    # Merge: Guardian stories first so they win deduplication
+    combined = guardian_stories + rss_stories
+
+    seen = set()
+    deduplicated = []
+    for story in combined:
+        key = story["title"][:80].lower()
+        if key not in seen:
+            seen.add(key)
+            deduplicated.append(story)
+
+    deduplicated.sort(
+        key=lambda s: s.get("published", ""),
+        reverse=True,
+    )
+
+    return deduplicated

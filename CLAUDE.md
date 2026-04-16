@@ -1,10 +1,10 @@
 # Wiingy Story Finder — Part 1
 
 ## What this builds
-Internal web tool for the Wiingy PR team. Searches Google News RSS for
-trending education/edtech stories, scores each story via AI on three
-dimensions, generates Wiingy Newsroom content angles on demand, lets
-editors save favourites and download CSV exports.
+Internal web tool for the Wiingy PR team. Searches Google News RSS and
+The Guardian API for trending education/edtech stories, scores each story
+via AI on three dimensions, generates Wiingy Newsroom content angles on
+demand, lets editors save favourites and download CSV exports.
 
 ## This is Part 1 only
 No Google Docs. No email. No writing. Just find, score, angle, review.
@@ -14,6 +14,7 @@ Approved stories saved with is_favourite=1 for Part 2 to consume later.
 - Python 3.11, FastAPI, SQLite (sqlite3 standard library, no ORM)
 - google-generativeai SDK, model: gemini-2.5-flash-lite
 - feedparser for Google News RSS (no API key needed)
+- requests + Guardian content API for The Guardian news (requires GUARDIAN_API_KEY)
 - pytrends for Google Trends data (no API key, may rate-limit)
 - python-dotenv for env vars, uvicorn for local server
 
@@ -29,6 +30,13 @@ Approved stories saved with is_favourite=1 for Part 2 to consume later.
 ## Env vars needed
 GEMINI_API_KEY -- from aistudio.google.com (free tier)
 NEWS_API_KEY -- from newsapi.org (free tier, not used in RSS path)
+GUARDIAN_API_KEY -- from open-platform.theguardian.com (free tier)
+
+## News agents
+- fetch_google_news_rss() — RSS scraper, no key needed
+- fetch_guardian_news() — Guardian content API, US-edition, education sections
+- fetch_all_news() — runs both scrapers, merges, deduplicates (Guardian wins
+  on title overlap), sorts by date descending
 
 ## Wiingy brand context for AI prompts
 Global tutoring marketplace. 4,500+ vetted tutors. 20,000+ students.

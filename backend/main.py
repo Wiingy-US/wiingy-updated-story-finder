@@ -29,7 +29,7 @@ from backend.database import (
     save_trend_search,
     get_recent_trend_searches,
 )
-from backend.agents.news_scraper import fetch_google_news_rss
+from backend.agents.news_scraper import fetch_all_news
 from backend.agents.relevance_scorer import score_story
 from backend.agents.angle_generator import generate_angle
 from backend.agents.trend_scraper import fetch_google_trends
@@ -132,7 +132,7 @@ def _stories_to_csv(stories, include_angle=False):
 
 @app.post("/api/search")
 async def api_search(req: SearchRequest):
-    stories = fetch_google_news_rss(req.keywords, req.date_from, req.date_to, req.us_state)
+    stories = fetch_all_news(req.keywords, req.date_from, req.date_to, req.us_state)
     search_id = save_search(req.keywords, req.date_from, req.date_to, req.us_state)
     inserted_ids = save_stories(search_id, stories)
     saved_stories = get_stories_by_search(search_id)

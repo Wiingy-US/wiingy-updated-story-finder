@@ -346,6 +346,14 @@
               </a>
               <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                 <span>{story.source}</span>
+                {story.origin === 'guardian' ? (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-teal/10 text-teal text-[10px] font-medium">
+                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-teal text-white text-[8px] font-bold">G</span>
+                    The Guardian
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-medium">RSS</span>
+                )}
                 {story.published && <><span>·</span><span>{fmtDate(story.published)}</span></>}
               </div>
             </div>
@@ -642,6 +650,7 @@
       const [scoringId, setScoringId] = useState(null);
       const [anglingId, setAnglingId] = useState(null);
       const [batchProgress, setBatchProgress] = useState(null);
+      const [sourceFilter, setSourceFilter] = useState('all');
 
       /* fav state */
       const [favs, setFavs] = useState([]);
@@ -745,10 +754,15 @@
         } catch (e) { toast('Failed to update favourite'); }
       }
 
-      const sorted = [...stories].sort((a, b) => {
+      const filtered = sourceFilter === 'all' ? stories
+        : stories.filter(s => sourceFilter === 'guardian' ? s.origin === 'guardian' : s.origin !== 'guardian');
+      const sorted = [...filtered].sort((a, b) => {
+        if (sortBy === 'source') return (a.origin === 'guardian' ? 0 : 1) - (b.origin === 'guardian' ? 0 : 1) || new Date(b.published || 0) - new Date(a.published || 0);
         if (sortBy === 'relevant') return (b.overall_score || 0) - (a.overall_score || 0);
         return new Date(b.published || 0) - new Date(a.published || 0);
       });
+      const guardianCount = stories.filter(s => s.origin === 'guardian').length;
+      const rssCount = stories.filter(s => s.origin !== 'guardian').length;
 
       /* favourites */
       async function loadFavs() {
@@ -987,7 +1001,7 @@
                       className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-brand rounded hover:bg-brand/90 disabled:opacity-50">
                       {searching ? <><Spinner /> Searching...</> : 'Search'}
                     </button>
-                    <p className="text-xs text-gray-400 mt-1.5">Fetching up to 10 most recent stories per keyword from Google News US</p>
+                    <p className="text-xs text-gray-400 mt-1.5">Fetching up to 10 stories per keyword from Google News RSS and The Guardian</p>
                   </div>
                 </div>
 
@@ -997,11 +1011,15 @@
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm text-gray-600">
                         Found <strong>{searchMeta.total}</strong> stories for <strong>{searchMeta.keywords.join(', ')}</strong>
+                        {searchMeta.total > 0 && (
+                          <span className="text-gray-400"> — {guardianCount} from The Guardian, {rssCount} from RSS</span>
+                        )}
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1">
                           <option value="recent">Most Recent</option>
                           <option value="relevant">Most Relevant</option>
+                          <option value="source">Source Quality</option>
                         </select>
                         <button onClick={scoreAll} disabled={!!batchProgress}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand rounded hover:bg-brand/90 disabled:opacity-50">
@@ -1012,6 +1030,15 @@
                           Download Stories CSV
                         </button>
                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {[['all', 'All Sources'], ['guardian', 'The Guardian only'], ['rss', 'RSS only']].map(([val, label]) => (
+                        <button key={val} onClick={() => setSourceFilter(val)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${sourceFilter === val ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand/50'}`}>
+                          {label}
+                        </button>
+                      ))}
                     </div>
 
                     <div className="grid gap-4">

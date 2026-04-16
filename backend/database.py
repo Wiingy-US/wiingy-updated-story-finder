@@ -81,6 +81,16 @@ def init_db():
     if "style_reason" not in cols:
         cursor.execute("ALTER TABLE content_angles ADD COLUMN style_reason TEXT")
 
+    def add_column_if_not_exists(table, column, col_type):
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+        except Exception:
+            pass
+
+    add_column_if_not_exists("stories", "guardian_id", "TEXT")
+    add_column_if_not_exists("stories", "byline", "TEXT")
+    add_column_if_not_exists("stories", "section", "TEXT")
+
     conn.commit()
     conn.close()
 
@@ -105,8 +115,9 @@ def save_stories(search_id, stories):
     for story in stories:
         cursor.execute(
             """INSERT INTO stories
-               (search_id, title, source, url, published, description, keyword, origin, run_date)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (search_id, title, source, url, published, description,
+                keyword, origin, guardian_id, byline, section, run_date)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 search_id,
                 story.get("title"),
@@ -116,6 +127,9 @@ def save_stories(search_id, stories):
                 story.get("description"),
                 story.get("keyword"),
                 story.get("origin"),
+                story.get("guardian_id", ""),
+                story.get("byline", ""),
+                story.get("section", ""),
                 datetime.utcnow().strftime("%Y-%m-%d"),
             )
         )
