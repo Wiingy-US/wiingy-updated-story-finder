@@ -25,10 +25,13 @@ from backend.database import (
     get_recent_searches,
     get_story_by_id,
     get_angle_by_story_id,
+    save_trend_search,
+    get_recent_trend_searches,
 )
 from backend.agents.news_scraper import fetch_google_news_rss
 from backend.agents.relevance_scorer import score_story
 from backend.agents.angle_generator import generate_angle
+from backend.agents.trend_scraper import fetch_google_trends
 
 
 @asynccontextmanager
@@ -53,6 +56,21 @@ class SearchRequest(BaseModel):
     date_from: str
     date_to: str
     us_state: str = "all"
+
+
+class TrendSearchRequest(BaseModel):
+    keywords: list[str]
+    timeframe: str = "today 7-d"
+    us_state: str = "all"
+
+
+DEFAULT_TREND_KEYWORDS = [
+    "online tutoring",
+    "edtech",
+    "AI in education",
+    "SAT prep",
+    "coding for kids",
+]
 
 
 def _stories_to_csv(stories, include_angle=False):
@@ -225,6 +243,47 @@ async def api_export_favourites():
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@app.post("/api/trends/search")
+async def api_trends_search(req: TrendSearchRequest):
+    try:
+        result = fetch_google_trends(
+            req.keywords, req.timeframe, "US", req.us_state
+        )
+        trend_search_id = save_trend_search(req.keywords, req.timeframe, req.us_state)
+        result["trend_search_id"] = trend_search_id
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Google Trends unavailable: {str(e)}"
+        )
+
+
+@app.get("/api/trends/searches")
+async def api_trends_searches():
+    searches = get_recent_trend_searches()
+    for s in searches:
+        if isinstance(s.get("keywords"), str):
+            try:
+                s["keywords"] = json.loads(s["keywords"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return searches
+
+
+@app.get("/api/trends/default")
+async def api_trends_default():
+    try:
+        return fetch_google_trends(
+            DEFAULT_TREND_KEYWORDS, "today 7-d", "US", "all"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Google Trends unavailable: {str(e)}"
+        )
 
 
 @app.get("/api/status")

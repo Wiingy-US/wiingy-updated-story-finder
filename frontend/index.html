@@ -24,6 +24,7 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <style>
     body { background: #f9f9f8; }
     .score-bar-fill { transition: width 0.4s ease; }
@@ -136,7 +137,7 @@
       return (
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
           {toasts.map(t => (
-            <div key={t.id} className="bg-red text-white px-4 py-2 rounded shadow-lg text-sm max-w-xs animate-pulse">
+            <div key={t.id} className={`${t.variant === 'warning' ? 'bg-amber' : 'bg-red'} text-white px-4 py-2 rounded shadow-lg text-sm max-w-xs`}>
               {t.msg}
             </div>
           ))}
@@ -457,6 +458,171 @@
       );
     }
 
+    /* ── Trend Chart Components ── */
+    const TREND_COLORS = ['#534AB7', '#0F6E56', '#BA7517', '#3B6D11', '#1D6FA4'];
+    const TREND_PILL_COLORS = [
+      'bg-brand/10 text-brand',
+      'bg-teal/10 text-teal',
+      'bg-amber/10 text-amber',
+      'bg-green/10 text-green',
+      'bg-blue-100 text-blue-700',
+    ];
+    const DEFAULT_TREND_KEYWORDS = ['online tutoring', 'edtech', 'AI in education', 'SAT prep', 'coding for kids'];
+    const TIMEFRAMES = [
+      ['now 1-d', 'Past 24 hours'],
+      ['today 7-d', 'Past 7 days'],
+      ['today 1-m', 'Past 30 days'],
+      ['today 3-m', 'Past 90 days'],
+      ['today 12-m', 'Past 12 months'],
+    ];
+
+    function LineChart({ data, keywords }) {
+      const canvasRef = useRef(null);
+      const chartRef = useRef(null);
+
+      useEffect(() => {
+        if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+        if (!canvasRef.current || !data || data.length === 0 || typeof Chart === 'undefined') return;
+
+        const datasets = keywords.map((kw, i) => ({
+          label: kw,
+          data: data.map(p => p[kw] ?? 0),
+          borderColor: TREND_COLORS[i % TREND_COLORS.length],
+          backgroundColor: TREND_COLORS[i % TREND_COLORS.length] + '22',
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2,
+          fill: false,
+        }));
+
+        chartRef.current = new Chart(canvasRef.current, {
+          type: 'line',
+          data: { labels: data.map(p => p.date), datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+              y: { min: 0, max: 100, title: { display: true, text: 'Interest score (0–100)' } },
+              x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+            },
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: { mode: 'index', intersect: false },
+            },
+          },
+        });
+
+        return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+      }, [data, keywords]);
+
+      return <canvas ref={canvasRef}></canvas>;
+    }
+
+    function RegionChart({ data, keyword }) {
+      const canvasRef = useRef(null);
+      const chartRef = useRef(null);
+
+      useEffect(() => {
+        if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+        if (!canvasRef.current || !data || data.length === 0 || !keyword || typeof Chart === 'undefined') return;
+
+        const sorted = [...data]
+          .map(r => ({ region: r.region, value: r.values?.[keyword] ?? 0 }))
+          .filter(r => r.value > 0)
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 10);
+
+        if (sorted.length === 0) return;
+
+        chartRef.current = new Chart(canvasRef.current, {
+          type: 'bar',
+          data: {
+            labels: sorted.map(r => r.region),
+            datasets: [{
+              label: keyword,
+              data: sorted.map(r => r.value),
+              backgroundColor: '#534AB7',
+              borderRadius: 3,
+            }],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { min: 0, max: 100, title: { display: true, text: 'Interest score' } },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: true },
+            },
+          },
+        });
+
+        return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+      }, [data, keyword]);
+
+      return <canvas ref={canvasRef}></canvas>;
+    }
+
+    function RelatedQueriesGrid({ related, keywords }) {
+      if (!keywords || keywords.length === 0) return null;
+      const cols = Math.max(keywords.length, 1);
+      return (
+        <div className="overflow-x-auto">
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(220px, 1fr))` }}>
+            {keywords.map((kw, i) => {
+              const d = (related && related[kw]) || { rising: [], top: [] };
+              const pill = TREND_PILL_COLORS[i % TREND_PILL_COLORS.length];
+              const empty = (!d.rising || d.rising.length === 0) && (!d.top || d.top.length === 0);
+              return (
+                <div key={kw} className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
+                  <Pill text={kw} color={pill} />
+                  {empty ? (
+                    <p className="text-xs text-gray-400">No related queries found</p>
+                  ) : (
+                    <>
+                      {d.rising && d.rising.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Rising</p>
+                          <div className="space-y-1">
+                            {d.rising.map((q, idx) => (
+                              <div key={idx} className="inline-flex items-center gap-1.5 bg-green/10 text-green text-xs px-2 py-1 rounded mr-1">
+                                <span className="font-bold">↑</span><span>{q.query}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {d.top && d.top.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Top</p>
+                          <div className="space-y-1.5">
+                            {d.top.map((q, idx) => {
+                              const pct = Math.max(0, Math.min((q.value || 0), 100));
+                              return (
+                                <div key={idx} className="space-y-0.5">
+                                  <p className="text-xs text-gray-700">{q.query}</p>
+                                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-brand rounded-full" style={{ width: pct + '%' }}></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     /* ── App ── */
     function App() {
       const [tab, setTab] = useState('search');
@@ -486,9 +652,21 @@
       const [searches, setSearches] = useState([]);
       const [histLoading, setHistLoading] = useState(false);
 
-      const toast = useCallback((msg) => {
+      /* trends state */
+      const [trendKeywords, setTrendKeywords] = useState(DEFAULT_TREND_KEYWORDS.slice(0));
+      const [trendKwInput, setTrendKwInput] = useState('');
+      const [trendTimeframe, setTrendTimeframe] = useState('today 7-d');
+      const [trendState, setTrendState] = useState('all');
+      const [trendsLoading, setTrendsLoading] = useState(false);
+      const [trendsData, setTrendsData] = useState(null);
+      const [trendRegionKeyword, setTrendRegionKeyword] = useState(null);
+      const [trendHistory, setTrendHistory] = useState([]);
+      const [trendHistoryOpen, setTrendHistoryOpen] = useState(false);
+      const trendsLoadedRef = useRef(false);
+
+      const toast = useCallback((msg, variant = 'error') => {
         const id = ++toastId.current;
-        setToasts(t => [...t, { id, msg }]);
+        setToasts(t => [...t, { id, msg, variant }]);
         setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
       }, []);
 
@@ -651,6 +829,80 @@
       useEffect(() => { if (tab === 'favs') loadFavs(); }, [tab]);
       useEffect(() => { if (tab === 'history') loadHistory(); }, [tab]);
 
+      /* trends functions */
+      function addTrendKeyword(e) {
+        if (e.key === 'Enter' && trendKwInput.trim() && trendKeywords.length < 5) {
+          e.preventDefault();
+          const kw = trendKwInput.trim();
+          if (!trendKeywords.includes(kw)) setTrendKeywords([...trendKeywords, kw]);
+          setTrendKwInput('');
+        }
+      }
+
+      function applyTrendsResult(data) {
+        setTrendsData(data);
+        const kws = data?.keywords || [];
+        if (kws.length > 0) setTrendRegionKeyword(kws[0]);
+      }
+
+      async function loadDefaultTrends() {
+        setTrendsLoading(true);
+        try {
+          const r = await fetch('/api/trends/default');
+          if (!r.ok) throw new Error('rate-limited');
+          const data = await r.json();
+          applyTrendsResult(data);
+        } catch (e) {
+          toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
+        }
+        setTrendsLoading(false);
+      }
+
+      async function doTrendSearch() {
+        if (!trendKeywords.length) return;
+        setTrendsLoading(true);
+        try {
+          const r = await fetch('/api/trends/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keywords: trendKeywords, timeframe: trendTimeframe, us_state: trendState }),
+          });
+          if (!r.ok) throw new Error('rate-limited');
+          const data = await r.json();
+          applyTrendsResult(data);
+          loadTrendHistory();
+        } catch (e) {
+          toast('Google Trends is temporarily rate-limited. Please wait 60 seconds and try again.', 'warning');
+        }
+        setTrendsLoading(false);
+      }
+
+      async function loadTrendHistory() {
+        try {
+          const r = await fetch('/api/trends/searches');
+          if (!r.ok) return;
+          setTrendHistory(await r.json());
+        } catch (e) { /* silent */ }
+      }
+
+      function reloadTrendSearch(s) {
+        const kws = Array.isArray(s.keywords) ? s.keywords : (() => { try { return JSON.parse(s.keywords); } catch { return []; } })();
+        setTrendKeywords(kws);
+        setTrendTimeframe(s.timeframe || 'today 7-d');
+        setTrendState(s.us_state || 'all');
+        setTimeout(() => doTrendSearch(), 0);
+      }
+
+      useEffect(() => {
+        if (tab === 'trends') {
+          loadTrendHistory();
+          if (!trendsLoadedRef.current) {
+            trendsLoadedRef.current = true;
+            loadDefaultTrends();
+          }
+        }
+      }, [tab]);
+
       /* ── render ── */
       return (
         <div className="min-h-screen bg-bg">
@@ -661,7 +913,7 @@
             <div className="max-w-5xl mx-auto px-4 flex items-center h-14 gap-6">
               <span className="font-bold text-brand text-lg tracking-tight">Wiingy</span>
               <div className="flex gap-1 ml-4">
-                {[['search','Search'],['favs','Favourites'],['history','History']].map(([k,label]) => (
+                {[['search','Search'],['favs','Favourites'],['trends','Trends ↗'],['history','History']].map(([k,label]) => (
                   <button key={k} onClick={() => setTab(k)}
                     className={`px-3 py-3.5 text-sm font-medium border-b-2 transition-colors ${tab===k ? 'border-brand text-brand' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                     {label}
@@ -789,6 +1041,150 @@
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── TRENDS TAB ── */}
+            {tab === 'trends' && (
+              <div className="space-y-5">
+                <h1 className="text-2xl font-bold text-gray-900">Trending in Education</h1>
+
+                {/* Search panel */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                  <label className="text-sm font-medium text-gray-700">Keywords</label>
+                  <div className="flex flex-wrap items-center gap-2 border border-gray-200 rounded px-3 py-2 focus-within:ring-2 focus-within:ring-brand/30">
+                    {trendKeywords.map(k => (
+                      <Pill key={k} text={k} onRemove={() => setTrendKeywords(trendKeywords.filter(x => x !== k))} />
+                    ))}
+                    {trendKeywords.length < 5 && (
+                      <input
+                        value={trendKwInput}
+                        onChange={e => setTrendKwInput(e.target.value)}
+                        onKeyDown={addTrendKeyword}
+                        placeholder={trendKeywords.length ? '' : 'Type a keyword and press Enter'}
+                        className="flex-1 min-w-[120px] outline-none text-sm py-1" />
+                    )}
+                  </div>
+                  {trendKeywords.length >= 5 && <p className="text-xs text-amber">Maximum 5 keywords (Google Trends limit)</p>}
+
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Timeframe</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TIMEFRAMES.map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => setTrendTimeframe(val)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${trendTimeframe === val ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand/50'}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <StateSelector value={trendState} onChange={setTrendState} />
+
+                  <div>
+                    <button onClick={doTrendSearch} disabled={!trendKeywords.length || trendsLoading}
+                      className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-brand rounded hover:bg-brand/90 disabled:opacity-50">
+                      {trendsLoading ? <><Spinner /> Fetching...</> : 'Search Trends'}
+                    </button>
+                    <p className="text-xs text-gray-400 mt-1.5">Data from Google Trends — updated in real time</p>
+                  </div>
+                </div>
+
+                {/* Interest over time */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Interest Over Time</p>
+                  <div className="relative" style={{ height: '320px' }}>
+                    {trendsLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+                        <Spinner size="w-8 h-8" />
+                      </div>
+                    )}
+                    {trendsData && trendsData.interest_over_time && trendsData.interest_over_time.length > 0 ? (
+                      <LineChart data={trendsData.interest_over_time} keywords={trendsData.keywords || []} />
+                    ) : !trendsLoading ? (
+                      <div className="h-full flex items-center justify-center text-sm text-gray-400">
+                        No trend data available for this period
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Interest by region */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Interest by US State</p>
+                    {trendsData && (trendsData.keywords || []).length > 1 && (
+                      <select
+                        value={trendRegionKeyword || ''}
+                        onChange={e => setTrendRegionKeyword(e.target.value)}
+                        className="text-xs border border-gray-200 rounded px-2 py-1">
+                        {(trendsData.keywords || []).map(k => <option key={k} value={k}>{k}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div className="relative" style={{ height: '360px' }}>
+                    {trendsLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+                        <Spinner size="w-8 h-8" />
+                      </div>
+                    )}
+                    {trendsData && trendsData.interest_by_region && trendsData.interest_by_region.length > 0 && trendRegionKeyword ? (
+                      <RegionChart data={trendsData.interest_by_region} keyword={trendRegionKeyword} />
+                    ) : !trendsLoading ? (
+                      <div className="h-full flex items-center justify-center text-sm text-gray-400">
+                        No regional data available
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Related queries */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Related Queries</p>
+                  {trendsData && trendsData.related_queries && Object.keys(trendsData.related_queries).length > 0 ? (
+                    <RelatedQueriesGrid related={trendsData.related_queries} keywords={trendsData.keywords || []} />
+                  ) : !trendsLoading ? (
+                    <p className="text-sm text-gray-400">No related queries available</p>
+                  ) : (
+                    <div className="flex justify-center py-6"><Spinner size="w-6 h-6" /></div>
+                  )}
+                </div>
+
+                {/* Trend history */}
+                <Collapsible
+                  open={trendHistoryOpen}
+                  onToggle={() => setTrendHistoryOpen(!trendHistoryOpen)}
+                  title="Past Trend Searches"
+                  right={
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                      {trendHistory.length}
+                    </span>
+                  }
+                >
+                  {trendHistory.length === 0 ? (
+                    <p className="text-sm text-gray-400">No previous trend searches yet.</p>
+                  ) : (
+                    <div className="grid gap-2">
+                      {trendHistory.map(s => {
+                        const kws = Array.isArray(s.keywords) ? s.keywords : (() => { try { return JSON.parse(s.keywords); } catch { return [s.keywords]; } })();
+                        const tfLabel = (TIMEFRAMES.find(([v]) => v === s.timeframe) || [null, s.timeframe])[1];
+                        return (
+                          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 border border-gray-200 rounded p-2.5">
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {kws.map(k => <Pill key={k} text={k} color="bg-brand/10 text-brand" />)}
+                              <span className="text-xs text-gray-500">· {tfLabel} · {s.us_state && s.us_state !== 'all' ? s.us_state : 'All States'} · {fmtDate(s.created_at)}</span>
+                            </div>
+                            <button onClick={() => reloadTrendSearch(s)} className="px-2.5 py-1 text-xs font-medium text-brand bg-brand/10 rounded hover:bg-brand/20">
+                              Reload
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Collapsible>
               </div>
             )}
 
