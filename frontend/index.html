@@ -220,23 +220,50 @@
       }
     }
 
+    /* ── Collapsible ── */
+    function Collapsible({ open, onToggle, title, right, children, headerClass = '', bodyClass = 'px-4 pb-4 pt-2' }) {
+      return (
+        <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+          <div
+            onClick={onToggle}
+            role="button"
+            className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 select-none ${headerClass}`}
+          >
+            <span className={`text-xs text-gray-400 inline-block transition-transform duration-200 shrink-0 ${open ? 'rotate-90' : ''}`}>▶</span>
+            <span className="text-sm font-medium text-gray-700 flex-1 min-w-0">{title}</span>
+            {right && <div className="shrink-0" onClick={(e) => e.stopPropagation()}>{right}</div>}
+          </div>
+          <div className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${open ? 'max-h-[5000px]' : 'max-h-0'}`}>
+            <div className={bodyClass}>{children}</div>
+          </div>
+        </div>
+      );
+    }
+
     /* ── Angle Card ── */
-    function AngleCard({ angle }) {
+    function AngleCard({ angle, open, onToggle }) {
       const [copied, setCopied] = useState(false);
       const borderClass = LENS_BORDER[angle.lens] || 'border-brand';
       const pillClass = LENS_COLORS[angle.lens] || 'bg-brand/10 text-brand';
 
-      function handleCopy() {
+      function handleCopy(e) {
+        e.stopPropagation();
         copyAnglePackage(angle);
         setCopied(true);
         setTimeout(() => setCopied(false), 1800);
       }
 
       return (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
+        <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+          <div
+            onClick={onToggle}
+            role="button"
+            className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 select-none"
+          >
+            <span className={`text-xs text-gray-400 inline-block transition-transform duration-200 shrink-0 ${open ? 'rotate-90' : ''}`}>▶</span>
             <Pill text={angle.lens} color={pillClass} />
-            <button onClick={handleCopy} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-brand" title="Copy angle package">
+            <h3 className="text-[15px] font-bold text-gray-900 leading-snug flex-1 min-w-0 line-clamp-2">{angle.title}</h3>
+            <button onClick={handleCopy} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-brand shrink-0" title="Copy angle package">
               {copied ? (
                 <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg><span>Copied</span></>
               ) : (
@@ -244,48 +271,44 @@
               )}
             </button>
           </div>
+          <div className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${open ? 'max-h-[3000px]' : 'max-h-0'}`}>
+            <div className="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
+              {angle.learning_angle && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Learning Angle</p>
+                  <p className={`text-sm text-gray-700 leading-relaxed border-l-4 ${borderClass} pl-3`}>
+                    {angle.learning_angle}
+                  </p>
+                </div>
+              )}
 
-          {angle.title && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Article Title</p>
-              <h3 className="text-[16px] font-bold text-gray-900 leading-snug">{angle.title}</h3>
-            </div>
-          )}
+              {angle.wiingy_link && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Wiingy Link</p>
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand text-white text-xs font-bold" title="Wiingy">W</span>
+                    <p className="text-sm italic text-gray-700 leading-relaxed">{angle.wiingy_link}</p>
+                  </div>
+                </div>
+              )}
 
-          {angle.learning_angle && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Learning Angle</p>
-              <p className={`text-sm text-gray-700 leading-relaxed border-l-4 ${borderClass} pl-3`}>
-                {angle.learning_angle}
-              </p>
+              {angle.suggested_sources && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Suggested Sources</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {angle.suggested_sources.split(',').map((src, i) => {
+                      const trimmed = src.trim();
+                      return trimmed ? (
+                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
+                          {trimmed}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-
-          {angle.wiingy_link && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Wiingy Link</p>
-              <div className="flex items-start gap-2">
-                <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand text-white text-xs font-bold" title="Wiingy">W</span>
-                <p className="text-sm italic text-gray-700 leading-relaxed">{angle.wiingy_link}</p>
-              </div>
-            </div>
-          )}
-
-          {angle.suggested_sources && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Suggested Sources</p>
-              <div className="flex flex-wrap gap-1.5">
-                {angle.suggested_sources.split(',').map((src, i) => {
-                  const trimmed = src.trim();
-                  return trimmed ? (
-                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
-                      {trimmed}
-                    </span>
-                  ) : null;
-                })}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       );
     }
@@ -293,9 +316,25 @@
     /* ── Story Card ── */
     function StoryCard({ story, onScore, onAngle, onFav, scoringId, anglingId }) {
       const [expanded, setExpanded] = useState(false);
+      const [openStyle, setOpenStyle] = useState(true);
+      const [openWhy, setOpenWhy] = useState(true);
+      const [openAngles, setOpenAngles] = useState(true);
+      const [openCards, setOpenCards] = useState([false, false, false, false, false]);
       const scored = story.overall_score != null;
       const hasAngles = Array.isArray(story.angles) && story.angles.length > 0;
       const topicReasoning = story.topic_reasoning;
+
+      function toggleCard(i) {
+        setOpenCards(prev => prev.map((v, idx) => idx === i ? !v : v));
+      }
+      function expandAll() {
+        setOpenStyle(true); setOpenWhy(true); setOpenAngles(true);
+        setOpenCards([true, true, true, true, true]);
+      }
+      function collapseAll() {
+        setOpenStyle(false); setOpenWhy(false); setOpenAngles(false);
+        setOpenCards([false, false, false, false, false]);
+      }
 
       return (
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
@@ -339,37 +378,65 @@
           )}
 
           {(topicReasoning || hasAngles) && (
-            <div className="space-y-3 pt-1">
-              {topicReasoning && (
-                <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Why this topic</p>
-                  <blockquote className="border-l-4 border-teal pl-3 text-sm italic text-gray-600 bg-gray-50 rounded-r py-2 pr-3">
-                    {topicReasoning}
-                  </blockquote>
-                </div>
-              )}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-end gap-3 text-xs">
+                <button onClick={expandAll} className="text-brand hover:underline">Expand all</button>
+                <span className="text-gray-300">|</span>
+                <button onClick={collapseAll} className="text-gray-500 hover:text-brand hover:underline">Collapse all</button>
+              </div>
+
               {hasAngles && story.recommended_style && (
-                <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Recommended Content Style</p>
-                  <div className="flex flex-wrap items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <Collapsible
+                  open={openStyle}
+                  onToggle={() => setOpenStyle(!openStyle)}
+                  title="Recommended Content Style"
+                  right={
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide ${STYLE_BADGE[story.recommended_style] || STYLE_BADGE['UNKNOWN']}`}>
                       {story.recommended_style}
                     </span>
-                    {story.style_reason && (
-                      <span className="text-xs italic text-gray-600 flex-1 min-w-[200px]">{story.style_reason}</span>
-                    )}
-                  </div>
-                </div>
+                  }
+                >
+                  {story.style_reason && (
+                    <p className="text-sm italic text-gray-600">{story.style_reason}</p>
+                  )}
+                </Collapsible>
               )}
+
+              {topicReasoning && (
+                <Collapsible
+                  open={openWhy}
+                  onToggle={() => setOpenWhy(!openWhy)}
+                  title="Why This Topic"
+                >
+                  <blockquote className="border-l-4 border-teal pl-3 text-sm italic text-gray-600 bg-gray-50 rounded-r py-2 pr-3">
+                    {topicReasoning}
+                  </blockquote>
+                </Collapsible>
+              )}
+
               {hasAngles && (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">5 Content Angles</p>
-                  <div className="grid gap-3">
+                <Collapsible
+                  open={openAngles}
+                  onToggle={() => setOpenAngles(!openAngles)}
+                  title="Content Angles"
+                  right={
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                      {story.angles.length} angles
+                    </span>
+                  }
+                  bodyClass="px-3 pb-3 pt-2"
+                >
+                  <div className="grid gap-2">
                     {story.angles.map((a, i) => (
-                      <AngleCard key={i} angle={a} />
+                      <AngleCard
+                        key={i}
+                        angle={a}
+                        open={!!openCards[i]}
+                        onToggle={() => toggleCard(i)}
+                      />
                     ))}
                   </div>
-                </div>
+                </Collapsible>
               )}
             </div>
           )}
