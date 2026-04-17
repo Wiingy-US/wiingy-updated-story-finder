@@ -651,7 +651,7 @@
           });
           const data = await r.json();
           setStories(data.stories);
-          setSearchMeta({ searchId: data.search_id, total: data.total, keywords: [...keywords], usState });
+          setSearchMeta({ searchId: data.search_id, total: data.total, keywords: [...keywords], usState, dateFrom, dateTo });
         } catch (e) { toast('Search failed: ' + e.message); }
         setSearching(false);
       }
@@ -811,7 +811,7 @@
         setUsState(s.us_state || 'all');
         setDateFrom(s.date_from);
         setDateTo(s.date_to);
-        setSearchMeta({ searchId: s.id, total: s.story_count, keywords: kws, usState: s.us_state || 'all' });
+        setSearchMeta({ searchId: s.id, total: s.story_count, keywords: kws, usState: s.us_state || 'all', dateFrom: s.date_from, dateTo: s.date_to });
         try {
           const r = await api(`/api/search/${s.id}/stories`);
           setStories(await r.json());
@@ -925,11 +925,12 @@
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-sm text-gray-600">
-                          Found <strong>{searchMeta.total}</strong> stories for <strong>{searchMeta.keywords.join(', ')}</strong>
-                          {searchMeta.total > 0 && (
-                            <span className="text-gray-400"> — {guardianCount} from The Guardian, {rssCount} from RSS</span>
-                          )}
+                          Found <strong>{searchMeta.total}</strong> stories for "<strong>{searchMeta.keywords.join(', ')}</strong>"
+                          <span className="text-gray-400"> · {fmtDate(searchMeta.dateFrom)} to {fmtDate(searchMeta.dateTo)} · {searchMeta.usState && searchMeta.usState !== 'all' ? `${searchMeta.usState}, US` : 'United States'}</span>
                         </p>
+                        {searchMeta.total > 0 && (
+                          <p className="text-xs text-gray-400 mt-0.5">{guardianCount} from The Guardian · {rssCount} from RSS</p>
+                        )}
                         {(() => {
                           const catCounts = {};
                           stories.forEach(s => { if (s.category) catCounts[s.category] = (catCounts[s.category] || 0) + 1; });

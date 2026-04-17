@@ -21,10 +21,6 @@ def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
         return []
 
     all_stories = []
-    sections = (
-        "education|higher-education|schools|technology|science|"
-        "society|money|careers|us-news"
-    )
 
     for keyword in keywords:
         try:
@@ -35,13 +31,11 @@ def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
                 "q": query,
                 "from-date": date_from,
                 "to-date": date_to,
-                "edition": "us",
+                "production-office": "usa",
                 "lang": "en",
                 "order-by": "newest",
                 "page-size": 10,
-                "show-fields": "headline,byline,trailText,shortUrl,publication",
-                "show-tags": "keyword",
-                "section": sections,
+                "show-fields": "headline,byline,trailText,shortUrl",
                 "api-key": api_key,
             }
 
