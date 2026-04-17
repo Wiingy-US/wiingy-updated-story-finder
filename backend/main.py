@@ -303,35 +303,42 @@ async def api_discovery_refresh():
 async def api_discovery_debug():
     import requests as req_lib
 
-    debug = {}
+    debug = {"feed_results": {}}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (compatible; WiingyBot/1.0)',
+        'Accept': 'application/rss+xml',
+    }
+
+    feeds = {
+        "education": "https://trends.google.com/trending/rss?geo=US&cat=0-174",
+        "science_tech": "https://trends.google.com/trending/rss?geo=US&cat=0-107",
+        "music": "https://trends.google.com/trending/rss?geo=US&cat=0-35",
+        "communities": "https://trends.google.com/trending/rss?geo=US&cat=0-299",
+        "jobs_education": "https://trends.google.com/trending/rss?geo=US&cat=0-60",
+    }
+
+    for name, url in feeds.items():
+        try:
+            r = req_lib.get(url, headers=headers, timeout=15)
+            feed = feedparser.parse(r.text) if r.status_code == 200 else None
+            debug["feed_results"][name] = {
+                "status": r.status_code,
+                "entries": len(feed.entries) if feed else 0,
+                "first_title": feed.entries[0].get('title', '') if feed and feed.entries else None,
+            }
+        except Exception as e:
+            debug["feed_results"][name] = {"error": str(e)}
 
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (compatible; WiingyBot/1.0)',
-            'Accept': 'application/rss+xml'
-        }
-        r = req_lib.get(
-            'https://trends.google.com/trending/rss?geo=US',
-            headers=headers,
-            timeout=15
-        )
-        debug["rss_status_code"] = r.status_code
-        debug["rss_content_length"] = len(r.text)
-        debug["rss_first_200_chars"] = r.text[:200]
+        data = build_discovery_data()
+        di = data.get("debug_info") or {}
+        debug["after_keyword_filter"] = di.get("after_keyword_filter", 0)
+        debug["after_deduplication"] = di.get("after_deduplication", 0)
+        debug["filter_relaxed"] = di.get("filter_relaxed", False)
+        debug["total_results"] = di.get("total_results", 0)
+        debug["top_5_queries"] = [item["query"] for item in (data.get("top20") or [])[:5]]
     except Exception as e:
-        debug["rss_error"] = str(e)
-
-    try:
-        feed = feedparser.parse(
-            'https://trends.google.com/trending/rss?geo=US'
-        )
-        debug["feed_entries_count"] = len(feed.entries)
-        if feed.entries:
-            first = feed.entries[0]
-            debug["first_entry_title"] = first.get('title', 'no title')
-            debug["first_entry_keys"] = list(first.keys())
-    except Exception as e:
-        debug["feedparser_error"] = str(e)
+        debug["build_error"] = str(e)
 
     return debug
 

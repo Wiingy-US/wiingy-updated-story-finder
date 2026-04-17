@@ -501,8 +501,8 @@
             datasets: [{
               data: data.map(d => ({ x: d.coverage, y: d.velocity, _raw: d })),
               backgroundColor: 'rgba(83,74,183,0.8)',
-              pointRadius: 8,
-              pointHoverRadius: 11,
+              pointRadius: 6,
+              pointHoverRadius: 9,
             }]
           },
           options: {
@@ -542,16 +542,51 @@
       return <canvas ref={canvasRef}></canvas>;
     }
 
+    const FEED_SOURCE_PILLS = {
+      'education': 'bg-brand/10 text-brand',
+      'science_tech': 'bg-blue-100 text-blue-700',
+      'music': 'bg-teal/10 text-teal',
+      'communities': 'bg-amber/10 text-amber',
+      'jobs_education': 'bg-green/10 text-green',
+    };
+    const FEED_SOURCE_LABELS = {
+      'education': 'Education',
+      'science_tech': 'Tech & AI',
+      'music': 'Music',
+      'communities': 'Communities',
+      'jobs_education': 'Skills',
+    };
+
     /* ── Trending Table ── */
     function TrendingTable({ data, onQueryClick }) {
       const [sortCol, setSortCol] = useState('rank');
       const [sortAsc, setSortAsc] = useState(true);
+      const [activeFeeds, setActiveFeeds] = useState(null);
 
       function toggleSort(col) {
         if (sortCol === col) { setSortAsc(!sortAsc); } else { setSortCol(col); setSortAsc(true); }
       }
 
-      const sorted = [...(data || [])].sort((a, b) => {
+      function toggleFeed(feed) {
+        if (activeFeeds === null) {
+          setActiveFeeds(new Set([feed]));
+        } else if (activeFeeds.has(feed)) {
+          const next = new Set(activeFeeds);
+          next.delete(feed);
+          setActiveFeeds(next.size === 0 ? null : next);
+        } else {
+          setActiveFeeds(new Set([...activeFeeds, feed]));
+        }
+      }
+
+      const feedCounts = {};
+      (data || []).forEach(r => {
+        const fs = r.feed_source || 'unknown';
+        feedCounts[fs] = (feedCounts[fs] || 0) + 1;
+      });
+
+      const filtered = activeFeeds === null ? (data || []) : (data || []).filter(r => activeFeeds.has(r.feed_source));
+      const sorted = [...filtered].sort((a, b) => {
         let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
         if (typeof av === 'number' && typeof bv === 'number') return sortAsc ? av - bv : bv - av;
         return sortAsc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
@@ -563,31 +598,51 @@
       }
 
       return (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
-                <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('rank')}>Rank<SortArrow col="rank" /></th>
-                <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('query')}>Query<SortArrow col="query" /></th>
-                <th className="px-3 py-2 text-right cursor-pointer hover:text-brand" onClick={() => toggleSort('traffic')}>Traffic<SortArrow col="traffic" /></th>
-                <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('category')}>Category<SortArrow col="category" /></th>
-                <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('started')}>Started<SortArrow col="started" /></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((row, i) => (
-                <tr key={i} className={`border-b border-gray-100 hover:border-l-2 hover:border-l-brand transition-all ${i % 2 === 0 ? 'bg-white' : 'bg-bg'}`}>
-                  <td className="px-3 py-2 text-gray-500 font-medium">{row.rank}</td>
-                  <td className="px-3 py-2">
-                    <button onClick={() => onQueryClick && onQueryClick(row.query)} className="font-bold text-gray-900 hover:text-brand text-left">{row.query}</button>
-                  </td>
-                  <td className="px-3 py-2 text-right text-gray-600">{row.traffic || '—'}</td>
-                  <td className="px-3 py-2">{row.category ? <Pill text={row.category} color="bg-gray-100 text-gray-600" /> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-3 py-2 text-gray-400 text-xs">{row.started || '—'}</td>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button onClick={() => setActiveFeeds(null)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${activeFeeds === null ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand/50'}`}>
+              All
+            </button>
+            {Object.entries(FEED_SOURCE_LABELS).map(([key, label]) => {
+              const count = feedCounts[key] || 0;
+              const active = activeFeeds !== null && activeFeeds.has(key);
+              return (
+                <button key={key} onClick={() => toggleFeed(key)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${active ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand/50'}`}>
+                  {label} ({count})
+                </button>
+              );
+            })}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                  <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('rank')}>Rank<SortArrow col="rank" /></th>
+                  <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('query')}>Query<SortArrow col="query" /></th>
+                  <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('feed_source')}>Topic Area<SortArrow col="feed_source" /></th>
+                  <th className="px-3 py-2 text-right cursor-pointer hover:text-brand" onClick={() => toggleSort('traffic')}>Traffic<SortArrow col="traffic" /></th>
+                  <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('started')}>Started<SortArrow col="started" /></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sorted.map((row, i) => (
+                  <tr key={i} className={`border-b border-gray-100 hover:border-l-2 hover:border-l-brand transition-all ${i % 2 === 0 ? 'bg-white' : 'bg-bg'}`}>
+                    <td className="px-3 py-2 text-gray-500 font-medium">{row.rank}</td>
+                    <td className="px-3 py-2">
+                      <button onClick={() => onQueryClick && onQueryClick(row.query)} className="font-bold text-gray-900 hover:text-brand text-left">{row.query}</button>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Pill text={FEED_SOURCE_LABELS[row.feed_source] || row.feed_source || '—'} color={FEED_SOURCE_PILLS[row.feed_source] || 'bg-gray-100 text-gray-600'} />
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-600">{row.traffic || '—'}</td>
+                    <td className="px-3 py-2 text-gray-400 text-xs">{row.started || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       );
     }
@@ -1052,8 +1107,8 @@
 
                 {/* Top 20 Trending Table */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Top 20 Trending in the US Right Now</p>
-                  <p className="text-xs text-gray-400 -mt-1">Biggest search spikes in the last 24 hours</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Top Trending Topics — Education, Music & AI</p>
+                  <p className="text-xs text-gray-400 -mt-1">Trending US search terms filtered to education, learning, music and AI topics · Up to 50 results</p>
                   {discoveryData && discoveryData.top20 && discoveryData.top20.length > 0 ? (
                     <TrendingTable data={discoveryData.top20} onQueryClick={handleExplorerHandoff} />
                   ) : !discoveryLoading ? (
