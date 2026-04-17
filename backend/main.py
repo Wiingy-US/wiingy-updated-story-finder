@@ -347,49 +347,50 @@ async def api_debug_guardian():
     import requests as req_lib
     from datetime import datetime, timedelta
 
-    api_key = os.getenv("GUARDIAN_API_KEY", "")
-    result = {
-        "guardian_api_key_set": bool(api_key),
-        "guardian_api_key_length": len(api_key),
-    }
+    api_key = os.getenv("GUARDIAN_API_KEY", "NOT_SET")
+    date_to = datetime.utcnow().strftime("%Y-%m-%d")
+    date_from = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
 
-    if not api_key:
-        result["error"] = "GUARDIAN_API_KEY not set"
-        return result
+    tests = {}
 
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    week_ago = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+    def _run(name, params):
+        try:
+            r = req_lib.get(
+                "https://content.guardianapis.com/search",
+                params={**params, "api-key": api_key},
+                timeout=15,
+            )
+            if r.status_code == 200:
+                body = r.json().get("response", {})
+                tests[name] = {"status": r.status_code, "total": body.get("total", 0)}
+            else:
+                tests[name] = {"status": r.status_code, "error": r.text[:200]}
+        except Exception as e:
+            tests[name] = {"error": str(e)}
 
-    try:
-        resp = req_lib.get(
-            "https://content.guardianapis.com/search",
-            params={
-                "q": "education",
-                "from-date": week_ago,
-                "to-date": today,
-                "edition": "us",
-                "page-size": 5,
-                "api-key": api_key,
-            },
-            timeout=15,
-        )
-        result["status_code"] = resp.status_code
-        result["response_ok"] = resp.ok
+    _run("test1_no_extra_params", {
+        "q": "education", "from-date": date_from, "to-date": date_to,
+        "lang": "en", "order-by": "newest", "page-size": 5,
+        "show-fields": "headline,trailText",
+    })
 
-        if resp.ok:
-            data = resp.json()
-            response_body = data.get("response", {})
-            result["total_results"] = response_body.get("total", 0)
-            results_list = response_body.get("results", [])
-            result["results_returned"] = len(results_list)
-            if results_list:
-                result["first_title"] = results_list[0].get("webTitle", "")
-        else:
-            result["error"] = resp.text[:500]
-    except Exception as e:
-        result["error"] = str(e)
+    _run("test2_with_production_office", {
+        "q": "education", "from-date": date_from, "to-date": date_to,
+        "lang": "en", "order-by": "newest", "page-size": 5,
+        "show-fields": "headline,trailText", "production-office": "usa",
+    })
 
-    return result
+    _run("test3_us_news_section", {
+        "q": "education", "from-date": date_from, "to-date": date_to,
+        "lang": "en", "order-by": "newest", "page-size": 5,
+        "show-fields": "headline,trailText", "section": "us-news",
+    })
+
+    _run("test4_minimal", {"q": "education"})
+
+    tests["api_key_set"] = api_key != "NOT_SET"
+    tests["api_key_preview"] = (api_key[:6] + "...") if api_key != "NOT_SET" else "NOT SET"
+    return tests
 
 
 @app.get("/api/status")

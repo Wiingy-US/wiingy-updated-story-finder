@@ -31,13 +31,13 @@ def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
                 "q": query,
                 "from-date": date_from,
                 "to-date": date_to,
-                "production-office": "usa",
                 "lang": "en",
                 "order-by": "newest",
                 "page-size": 10,
                 "show-fields": "headline,byline,trailText,shortUrl",
                 "api-key": api_key,
             }
+            print(f"[guardian] Request params (sans key): { {k: v for k, v in params.items() if k != 'api-key'} }")
 
             resp = requests.get(
                 "https://content.guardianapis.com/search",
@@ -45,9 +45,12 @@ def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
                 timeout=15,
             )
             print(f"[guardian] Response status: {resp.status_code}")
-            resp.raise_for_status()
-            data = resp.json()
 
+            if resp.status_code != 200:
+                print(f"[guardian] Error response: {resp.text[:300]}")
+                continue
+
+            data = resp.json()
             results = data.get("response", {}).get("results", [])
             total = data.get("response", {}).get("total", 0)
             print(f"[guardian] keyword='{keyword}': {len(results)} results returned, {total} total available")
