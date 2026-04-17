@@ -91,14 +91,11 @@ def _stories_to_csv(stories, include_angle=False):
         "is_favourite",
     ]
     if include_angle:
-        fieldnames.extend(["topic_reasoning", "recommended_style", "style_reason"])
         for i in range(1, 6):
             fieldnames.extend([
-                f"angle_{i}_lens",
                 f"angle_{i}_title",
-                f"angle_{i}_learning_angle",
-                f"angle_{i}_wiingy_link",
-                f"angle_{i}_suggested_sources",
+                f"angle_{i}_angle",
+                f"angle_{i}_wiingy_data_point",
             ])
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
@@ -107,11 +104,9 @@ def _stories_to_csv(stories, include_angle=False):
             angles = story.get("angles") or []
             for i in range(1, 6):
                 a = angles[i - 1] if i - 1 < len(angles) else {}
-                story[f"angle_{i}_lens"] = a.get("lens", "")
                 story[f"angle_{i}_title"] = a.get("title", "")
-                story[f"angle_{i}_learning_angle"] = a.get("learning_angle", "")
-                story[f"angle_{i}_wiingy_link"] = a.get("wiingy_link", "")
-                story[f"angle_{i}_suggested_sources"] = a.get("suggested_sources", "")
+                story[f"angle_{i}_angle"] = a.get("angle", "")
+                story[f"angle_{i}_wiingy_data_point"] = a.get("wiingy_data_point", "")
         writer.writerow(story)
     output.seek(0)
     return output
@@ -166,28 +161,11 @@ async def api_generate_angle(story_id: int):
         story = get_story_by_id(story_id)
         story = dict(story)
     angled = generate_angle(dict(story))
-    is_music = angled.get("is_music", False)
-    save_content_angle(
-        story_id,
-        angled.get("topic_reasoning", ""),
-        angled.get("recommended_style", ""),
-        angled.get("style_reason", ""),
-        angled.get("angles"),
-        is_music=is_music,
-        music_news_type=angled.get("music_news_type"),
-        no_angle=angled.get("no_angle", False),
-        no_angle_reason=angled.get("no_angle_reason"),
-        reasoning_chain=angled.get("reasoning_chain"),
-        bridge=angled.get("bridge"),
-        bridge_reason=angled.get("bridge_reason"),
-        music_angle=angled.get("angle"),
-    )
+    angles = angled.get("angles", [])
+    save_content_angle(story_id, angles)
     result = dict(get_story_by_id(story_id))
-    for key in ("topic_reasoning", "recommended_style", "style_reason", "angles",
-                "is_music", "music_news_type", "no_angle", "no_angle_reason",
-                "reasoning_chain", "bridge", "bridge_reason"):
-        result[key] = angled.get(key)
-    result["music_angle"] = angled.get("angle")
+    result["angles"] = angles
+    result["angle_error"] = angled.get("angle_error")
     return result
 
 
@@ -202,18 +180,9 @@ async def api_toggle_favourite(story_id: int):
 
 def _attach_angle(target, angle):
     if angle:
-        for key in ("topic_reasoning", "recommended_style", "style_reason",
-                     "is_music", "music_news_type", "no_angle", "no_angle_reason",
-                     "reasoning_chain", "bridge", "bridge_reason", "music_angle"):
-            target[key] = angle.get(key)
         target["angles"] = angle.get("angles") or []
     else:
-        target["topic_reasoning"] = None
-        target["recommended_style"] = None
-        target["style_reason"] = None
         target["angles"] = []
-        target["is_music"] = False
-        target["music_angle"] = None
 
 
 @app.get("/api/favourites")
@@ -334,32 +303,6 @@ async def api_discovery_debug():
 
     debug["total_raw"] = total
     return debug
-
-
-@app.get("/api/debug/angle-routing")
-async def api_debug_angle_routing(story_id: int):
-    from backend.agents.angle_generator import MUSIC_KEYWORDS, _is_music_story
-    story = get_story_by_id(story_id)
-    if not story:
-        return {"error": "Story not found"}
-    story = dict(story)
-    combined_text = (str(story.get("title", "")) + " " + str(story.get("description", ""))).lower()
-    matched = [kw for kw in MUSIC_KEYWORDS if kw in combined_text]
-    cat = str(story.get("category", "")).lower().strip()
-    cat_is_music = cat == "music"
-    kw_is_music = len(matched) >= 2
-    final = _is_music_story(story)
-    return {
-        "story_id": story_id,
-        "title": story.get("title", ""),
-        "category": story.get("category"),
-        "category_contains_music": cat_is_music,
-        "music_keywords_found": matched,
-        "music_keywords_count": len(matched),
-        "is_music_by_keyword": kw_is_music,
-        "final_is_music": final,
-        "routing_decision": "MUSIC FRAMEWORK" if final else "STANDARD 5-LENS",
-    }
 
 
 @app.get("/api/debug/guardian")

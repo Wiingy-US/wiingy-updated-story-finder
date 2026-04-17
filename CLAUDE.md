@@ -65,19 +65,6 @@ Frontend renders a Pitch Quadrant scatter chart (Chart.js) plotting
 velocity vs coverage, and a sortable Top 20 Trending table. Clicking
 any trend hands off the query to the Search tab.
 
-## Music content framework
-Music stories (detected by category field or 3+ music signal words in
-title/description) use a separate angle generation pipeline:
-- 5-step reasoning: news type classification, genuine angle gate,
-  4-step bottom-up reasoning chain, bridge selection, Wiingy data hook
-- Single angle output (not 5-lens) with title, learning_angle, wiingy_link,
-  wiingy_data_hook
-- Stories that fail the gate return no_angle=true with a reason
-- 7 bridge types: HOW_THEY_GOT_THERE, SKILL_BEHIND_SPECTACLE,
-  TREND_AS_OPPORTUNITY, CAREER_MATH, YOU_COULD_START_TODAY,
-  MENTORSHIP_MADE_THE_DIFFERENCE, ART_AS_TEACHER
-Non-music stories use the standard 5-lens system unchanged.
-
 ## Do NOT build in Part 1
 No Google Docs API. No email/SMTP. No GitHub Actions cron.
 No authentication. No Reddit scraping.

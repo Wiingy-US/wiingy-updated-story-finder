@@ -52,25 +52,35 @@ def init_db():
     """)
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS content_angles (
+        CREATE TABLE IF NOT EXISTS content_angles_v2 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             story_id INTEGER,
-            topic_reasoning TEXT,
-            recommended_style TEXT,
-            style_reason TEXT,
             angles TEXT,
             created_at TEXT
         )
     """)
 
-    # Safe migrations for existing databases
-    cursor.execute("PRAGMA table_info(content_angles)")
-    cols = {row[1] for row in cursor.fetchall()}
-    if "recommended_style" not in cols:
-        cursor.execute("ALTER TABLE content_angles ADD COLUMN recommended_style TEXT")
-    if "style_reason" not in cols:
-        cursor.execute("ALTER TABLE content_angles ADD COLUMN style_reason TEXT")
+    # Migrate old table if it exists and v2 is empty
+    cursor.execute("SELECT COUNT(*) FROM content_angles_v2")
+    v2_count = cursor.fetchone()[0]
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='content_angles'")
+    old_exists = cursor.fetchone() is not None
+    if old_exists and v2_count == 0:
+        try:
+            cursor.execute("""
+                INSERT INTO content_angles_v2 (story_id, angles, created_at)
+                SELECT story_id, COALESCE(angles, '[]'), created_at
+                FROM content_angles
+            """)
+        except Exception:
+            pass
+    if old_exists:
+        cursor.execute("DROP TABLE IF EXISTS content_angles")
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='content_angles'")
+    if cursor.fetchone() is None:
+        cursor.execute("ALTER TABLE content_angles_v2 RENAME TO content_angles")
 
+    # Safe migrations for stories table
     def add_column_if_not_exists(table, column, col_type):
         try:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
@@ -80,15 +90,6 @@ def init_db():
     add_column_if_not_exists("stories", "guardian_id", "TEXT")
     add_column_if_not_exists("stories", "byline", "TEXT")
     add_column_if_not_exists("stories", "section", "TEXT")
-
-    add_column_if_not_exists("content_angles", "is_music", "INTEGER DEFAULT 0")
-    add_column_if_not_exists("content_angles", "music_news_type", "TEXT")
-    add_column_if_not_exists("content_angles", "no_angle", "INTEGER DEFAULT 0")
-    add_column_if_not_exists("content_angles", "no_angle_reason", "TEXT")
-    add_column_if_not_exists("content_angles", "reasoning_chain", "TEXT")
-    add_column_if_not_exists("content_angles", "bridge", "TEXT")
-    add_column_if_not_exists("content_angles", "bridge_reason", "TEXT")
-    add_column_if_not_exists("content_angles", "music_angle", "TEXT")
 
     conn.commit()
     conn.close()
@@ -168,34 +169,12 @@ def update_story_scores(story_id, scores_dict):
     conn.close()
 
 
-def save_content_angle(story_id, topic_reasoning, recommended_style, style_reason, angles,
-                       is_music=False, music_news_type=None, no_angle=False,
-                       no_angle_reason=None, reasoning_chain=None, bridge=None,
-                       bridge_reason=None, music_angle=None):
+def save_content_angle(story_id, angles):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        """INSERT INTO content_angles
-           (story_id, topic_reasoning, recommended_style, style_reason, angles,
-            is_music, music_news_type, no_angle, no_angle_reason,
-            reasoning_chain, bridge, bridge_reason, music_angle, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            story_id,
-            topic_reasoning,
-            recommended_style,
-            style_reason,
-            json.dumps(angles) if angles else "[]",
-            1 if is_music else 0,
-            music_news_type,
-            1 if no_angle else 0,
-            no_angle_reason,
-            json.dumps(reasoning_chain) if reasoning_chain else None,
-            bridge,
-            bridge_reason,
-            json.dumps(music_angle) if music_angle else None,
-            datetime.utcnow().isoformat(),
-        )
+        "INSERT INTO content_angles (story_id, angles, created_at) VALUES (?, ?, ?)",
+        (story_id, json.dumps(angles or []), datetime.utcnow().isoformat())
     )
     conn.commit()
     conn.close()
@@ -273,14 +252,4 @@ def get_angle_by_story_id(story_id):
         result["angles"] = json.loads(result["angles"]) if result.get("angles") else []
     except (json.JSONDecodeError, TypeError):
         result["angles"] = []
-    try:
-        result["reasoning_chain"] = json.loads(result["reasoning_chain"]) if result.get("reasoning_chain") else None
-    except (json.JSONDecodeError, TypeError):
-        result["reasoning_chain"] = None
-    try:
-        result["music_angle"] = json.loads(result["music_angle"]) if result.get("music_angle") else None
-    except (json.JSONDecodeError, TypeError):
-        result["music_angle"] = None
-    result["is_music"] = bool(result.get("is_music"))
-    result["no_angle"] = bool(result.get("no_angle"))
     return result
