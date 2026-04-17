@@ -63,8 +63,13 @@ def fetch_google_news_rss(keywords, date_from, date_to, us_state="all"):
 def fetch_all_news(keywords, date_from, date_to, us_state="all"):
     from backend.agents.guardian_scraper import fetch_guardian_news
 
+    print(f"[fetch_all_news] Starting: keywords={keywords}, us_state={us_state}")
+
     rss_stories = fetch_google_news_rss(keywords, date_from, date_to, us_state)
+    print(f"[fetch_all_news] RSS returned {len(rss_stories)} stories")
+
     guardian_stories = fetch_guardian_news(keywords, date_from, date_to, us_state)
+    print(f"[fetch_all_news] Guardian returned {len(guardian_stories)} stories")
 
     # Merge: Guardian stories first so they win deduplication
     combined = guardian_stories + rss_stories
@@ -81,5 +86,9 @@ def fetch_all_news(keywords, date_from, date_to, us_state="all"):
         key=lambda s: s.get("published", ""),
         reverse=True,
     )
+
+    guardian_final = sum(1 for s in deduplicated if s.get("origin") == "guardian")
+    rss_final = sum(1 for s in deduplicated if s.get("origin") == "rss")
+    print(f"[fetch_all_news] After dedup: {len(deduplicated)} total ({guardian_final} guardian, {rss_final} rss)")
 
     return deduplicated

@@ -337,6 +337,56 @@ async def api_trends_default():
         }
 
 
+@app.get("/api/debug/guardian")
+async def api_debug_guardian():
+    import requests as req_lib
+    from datetime import datetime, timedelta
+
+    api_key = os.getenv("GUARDIAN_API_KEY", "")
+    result = {
+        "guardian_api_key_set": bool(api_key),
+        "guardian_api_key_length": len(api_key),
+    }
+
+    if not api_key:
+        result["error"] = "GUARDIAN_API_KEY not set"
+        return result
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    week_ago = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    try:
+        resp = req_lib.get(
+            "https://content.guardianapis.com/search",
+            params={
+                "q": "education",
+                "from-date": week_ago,
+                "to-date": today,
+                "edition": "us",
+                "page-size": 5,
+                "api-key": api_key,
+            },
+            timeout=15,
+        )
+        result["status_code"] = resp.status_code
+        result["response_ok"] = resp.ok
+
+        if resp.ok:
+            data = resp.json()
+            response_body = data.get("response", {})
+            result["total_results"] = response_body.get("total", 0)
+            results_list = response_body.get("results", [])
+            result["results_returned"] = len(results_list)
+            if results_list:
+                result["first_title"] = results_list[0].get("webTitle", "")
+        else:
+            result["error"] = resp.text[:500]
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
 @app.get("/api/status")
 async def api_status():
     return {"status": "idle"}

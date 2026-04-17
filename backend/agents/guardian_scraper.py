@@ -14,6 +14,8 @@ def _strip_html(text):
 
 def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
     api_key = os.getenv("GUARDIAN_API_KEY", "")
+    print(f"[guardian] Starting fetch: keywords={keywords}, date_from={date_from}, date_to={date_to}, us_state={us_state}")
+    print(f"[guardian] GUARDIAN_API_KEY set: {bool(api_key)}, length: {len(api_key)}")
     if not api_key:
         print("[guardian] WARNING: GUARDIAN_API_KEY not set, returning empty list")
         return []
@@ -27,6 +29,7 @@ def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
     for keyword in keywords:
         try:
             query = keyword if us_state == "all" else f"{keyword} {us_state}"
+            print(f"[guardian] Fetching keyword='{keyword}', query='{query}'")
 
             params = {
                 "q": query,
@@ -47,10 +50,14 @@ def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
                 params=params,
                 timeout=15,
             )
+            print(f"[guardian] Response status: {resp.status_code}")
             resp.raise_for_status()
             data = resp.json()
 
             results = data.get("response", {}).get("results", [])
+            total = data.get("response", {}).get("total", 0)
+            print(f"[guardian] keyword='{keyword}': {len(results)} results returned, {total} total available")
+
             for item in results:
                 fields = item.get("fields") or {}
                 published_raw = item.get("webPublicationDate", "")
@@ -87,4 +94,5 @@ def fetch_guardian_news(keywords, date_from, date_to, us_state="all"):
         reverse=True,
     )
 
+    print(f"[guardian] Returning {len(deduplicated)} deduplicated stories")
     return deduplicated
