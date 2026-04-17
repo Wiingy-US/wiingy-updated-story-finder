@@ -5,3 +5,4 @@ feedparser
 python-dotenv
 requests
 beautifulsoup4
+lxml

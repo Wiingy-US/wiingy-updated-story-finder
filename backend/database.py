@@ -187,6 +187,7 @@ def update_article_content(story_id, content, summary, status):
     )
     conn.commit()
     conn.close()
+    print(f"[db] Saved article content for story {story_id}, status={status}")
 
 
 def save_content_angle(story_id, angles):

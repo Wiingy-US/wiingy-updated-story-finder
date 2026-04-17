@@ -143,11 +143,15 @@ async def api_search_stories(search_id: int):
 
 @app.post("/api/stories/{story_id}/fetch-article")
 async def api_fetch_article(story_id: int):
+    print(f"[fetch-article] Called for story_id: {story_id}")
     story = get_story_by_id(story_id)
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
     story = dict(story)
+    print(f"[fetch-article] Story URL: {story.get('url', 'NO URL')}")
+    print(f"[fetch-article] Current fetch status: {story.get('article_fetch_status', 'NOT SET')}")
     if story.get("article_fetch_status") == "success":
+        print("[fetch-article] Returning cached result")
         return {
             "story_id": story_id,
             "cached": True,
@@ -157,6 +161,7 @@ async def api_fetch_article(story_id: int):
     content, err = fetch_article_content(story.get("url", ""))
     if err:
         update_article_content(story_id, None, None, err)
+        print(f"[fetch-article] Fetch failed: {err}")
         return {
             "story_id": story_id,
             "status": err,
@@ -165,6 +170,7 @@ async def api_fetch_article(story_id: int):
         }
     summary = generate_article_summary(story.get("title", ""), content)
     update_article_content(story_id, content, summary, "success")
+    print(f"[fetch-article] Success: summary={len(summary) if summary else 0} chars")
     return {
         "story_id": story_id,
         "status": "success",
@@ -339,6 +345,46 @@ async def api_discovery_debug():
         _time.sleep(0.3)
 
     debug["total_raw"] = total
+    return debug
+
+
+@app.get("/api/debug/fetch-article")
+async def api_debug_fetch_article(url: str = ""):
+    import requests as req_lib
+
+    if not url:
+        return {"error": "No URL provided. Add ?url=https://example.com"}
+
+    debug = {}
+
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/120.0.0.0 Safari/537.36'
+        }
+        r = req_lib.get(url, headers=headers, timeout=15, allow_redirects=True)
+        debug["http_status"] = r.status_code
+        debug["content_type"] = r.headers.get("Content-Type", "unknown")
+        debug["content_length"] = len(r.text)
+        debug["first_500_chars"] = r.text[:500]
+    except Exception as e:
+        debug["http_error"] = str(e)
+
+    try:
+        content, status = fetch_article_content(url)
+        debug["fetch_status"] = status
+        debug["extracted_length"] = len(content) if content else 0
+        debug["content_preview"] = content[:300] if content else None
+    except Exception as e:
+        debug["fetch_function_error"] = str(e)
+
+    try:
+        from bs4 import BeautifulSoup
+        debug["beautifulsoup4_installed"] = True
+    except ImportError:
+        debug["beautifulsoup4_installed"] = False
+
     return debug
 
 

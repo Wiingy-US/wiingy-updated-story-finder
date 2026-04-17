@@ -687,10 +687,12 @@
       }
 
       async function fetchArticle(id) {
+        console.log('[summary] Calling fetch-article for story:', id);
         setFetchingArticleId(id);
         try {
           const r = await api(`/api/stories/${id}/fetch-article`, { method: 'POST' });
           const data = await r.json();
+          console.log('[summary] Response:', data);
           setStories(prev => prev.map(x => x.id === id ? {
             ...x,
             article_summary: data.summary || null,
