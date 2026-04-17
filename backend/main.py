@@ -258,11 +258,15 @@ async def api_discovery():
         cached = get_cached_discovery()
         if cached is not None:
             cached["cache_age_seconds"] = get_cache_age_seconds()
-            return _serialize(cached)
+            result = _serialize(cached)
+            print(f"[discovery] /api/discovery returning cached: quadrant={len(result.get('quadrant_data') or [])}, top20={len(result.get('top20') or [])}, error={result.get('error')}")
+            return result
         data = build_discovery_data()
         set_cached_discovery(data)
         data["cache_age_seconds"] = 0
-        return _serialize(data)
+        result = _serialize(data)
+        print(f"[discovery] /api/discovery returning fresh: quadrant={len(result.get('quadrant_data') or [])}, top20={len(result.get('top20') or [])}, error={result.get('error')}")
+        return result
     except Exception as e:
         traceback.print_exc()
         return {
@@ -280,7 +284,9 @@ async def api_discovery_refresh():
         data = build_discovery_data()
         set_cached_discovery(data)
         data["cache_age_seconds"] = 0
-        return _serialize(data)
+        result = _serialize(data)
+        print(f"[discovery] /api/discovery/refresh returning: quadrant={len(result.get('quadrant_data') or [])}, top20={len(result.get('top20') or [])}, error={result.get('error')}")
+        return result
     except Exception as e:
         traceback.print_exc()
         return {
@@ -290,6 +296,51 @@ async def api_discovery_refresh():
             "cached_at": None,
             "cache_age_seconds": None,
         }
+
+
+@app.get("/api/discovery/debug")
+async def api_discovery_debug():
+    results = {
+        "trending_searches": {"status": "not_run", "data": None, "error": None},
+        "realtime_trending": {"status": "not_run", "data": None, "error": None},
+    }
+    try:
+        import time as _time
+        from pytrends.request import TrendReq
+
+        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
+
+        try:
+            df = pytrends.trending_searches(pn='united_states')
+            if df is not None and not df.empty:
+                results["trending_searches"]["status"] = "success"
+                results["trending_searches"]["data"] = df[df.columns[0]].tolist()[:5]
+            else:
+                results["trending_searches"]["status"] = "empty_dataframe"
+        except Exception as e:
+            results["trending_searches"]["status"] = "error"
+            results["trending_searches"]["error"] = str(e)
+            results["trending_searches"]["traceback"] = traceback.format_exc()
+
+        _time.sleep(2)
+
+        try:
+            df2 = pytrends.realtime_trending_searches(pn='US')
+            if df2 is not None and not df2.empty:
+                results["realtime_trending"]["status"] = "success"
+                results["realtime_trending"]["columns"] = list(df2.columns)
+                results["realtime_trending"]["row_count"] = len(df2)
+                results["realtime_trending"]["first_row"] = str(df2.iloc[0].to_dict())
+            else:
+                results["realtime_trending"]["status"] = "empty_dataframe"
+        except Exception as e:
+            results["realtime_trending"]["status"] = "error"
+            results["realtime_trending"]["error"] = str(e)
+            results["realtime_trending"]["traceback"] = traceback.format_exc()
+    except Exception as e:
+        results["import_error"] = str(e)
+
+    return results
 
 
 @app.get("/api/debug/guardian")

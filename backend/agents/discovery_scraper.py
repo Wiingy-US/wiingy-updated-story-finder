@@ -1,154 +1,188 @@
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def fetch_trending_now():
-    print("[discovery] fetch_trending_now: starting")
+    print("[discovery] Starting fetch_trending_now")
     try:
         from pytrends.request import TrendReq
-        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25), retries=2, backoff_factor=0.5)
-        print("[discovery] fetch_trending_now: calling trending_searches(pn='united_states')")
+        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
+        print("[discovery] TrendReq initialized")
+
         df = pytrends.trending_searches(pn='united_states')
-        print(f"[discovery] fetch_trending_now: got dataframe shape={df.shape}, columns={list(df.columns)}")
-        time.sleep(1)
+        print(f"[discovery] trending_searches returned: type={type(df)}")
+
+        if df is None:
+            print("[discovery] trending_searches returned None")
+            return []
+
+        if hasattr(df, 'empty') and df.empty:
+            print("[discovery] trending_searches returned empty dataframe")
+            return []
+
+        print(f"[discovery] dataframe shape: {df.shape}")
+        print(f"[discovery] dataframe columns: {list(df.columns)}")
 
         results = []
-        for rank, (_, row) in enumerate(df.head(20).iterrows(), start=1):
-            query = str(row.iloc[0]) if len(row) > 0 else str(row)
+        col = df.columns[0]
+        for i, val in enumerate(df[col].tolist()[:20]):
             results.append({
-                "rank": rank,
-                "query": query.strip(),
+                "rank": i + 1,
+                "query": str(val),
                 "category": "",
+                "traffic": "",
+                "started": "",
             })
-        print(f"[discovery] fetch_trending_now: returning {len(results)} items")
+
+        print(f"[discovery] fetch_trending_now returning {len(results)} items")
         return results
+
     except Exception as e:
-        print(f"[discovery] fetch_trending_now FAILED: {e}")
+        print(f"[discovery] fetch_trending_now error: {e}")
         traceback.print_exc()
         return []
 
 
 def fetch_realtime_trends():
-    print("[discovery] fetch_realtime_trends: starting")
+    print("[discovery] Starting fetch_realtime_trends")
     try:
         from pytrends.request import TrendReq
-        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25), retries=2, backoff_factor=0.5)
-        print("[discovery] fetch_realtime_trends: calling realtime_trending_searches(pn='US')")
-        df = pytrends.realtime_trending_searches(pn='US')
-        print(f"[discovery] fetch_realtime_trends: got dataframe shape={df.shape}, columns={list(df.columns)}")
+        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
+        print("[discovery] TrendReq initialized for realtime")
         time.sleep(1)
 
+        df = pytrends.realtime_trending_searches(pn='US')
+        print(f"[discovery] realtime_trending_searches returned: type={type(df)}")
+
+        if df is None:
+            print("[discovery] realtime returned None")
+            return []
+
+        if hasattr(df, 'empty') and df.empty:
+            print("[discovery] realtime returned empty dataframe")
+            return []
+
+        print(f"[discovery] realtime shape: {df.shape}")
+        print(f"[discovery] realtime columns: {list(df.columns)}")
+
         results = []
-        for _, row in df.head(13).iterrows():
-            title = ""
-            if 'title' in row:
-                title = str(row['title'])
-            elif 'entityNames' in row:
-                val = row['entityNames']
-                title = str(val[0]) if isinstance(val, list) and val else str(val)
+        for i, row in df.iterrows():
+            if i >= 13:
+                break
+            try:
+                title = ""
+                for col in ['title', 'query', 'entityNames', 'Title']:
+                    if col in row and row[col]:
+                        title = str(row[col])
+                        break
+                if not title:
+                    title = str(row.iloc[0])
 
-            articles = []
-            for col in ['articles', 'articleTitles']:
-                if col in row and row[col] is not None:
-                    val = row[col]
-                    if isinstance(val, list):
-                        articles = [str(a) if not isinstance(a, dict) else a.get('articleTitle', str(a)) for a in val[:3]]
-                    break
+                articles = []
+                for col in ['articles', 'news', 'Stories']:
+                    if col in row and row[col]:
+                        raw = row[col]
+                        if isinstance(raw, list):
+                            articles = [
+                                str(a.get('articleTitle', a.get('title', str(a))))
+                                for a in raw[:3] if isinstance(a, dict)
+                            ]
+                        elif isinstance(raw, str):
+                            articles = [raw[:100]]
+                        break
 
-            traffic = ""
-            if 'formattedTraffic' in row and row['formattedTraffic']:
-                traffic = str(row['formattedTraffic'])
+                traffic = ""
+                for col in ['formattedTraffic', 'traffic', 'Traffic']:
+                    if col in row and row[col]:
+                        traffic = str(row[col])
+                        break
 
-            started = ""
-            for col in ['time', 'startTime']:
-                if col in row and row[col]:
-                    started = str(row[col])[:19]
-                    break
+                started = ""
+                for col in ['startTime', 'started', 'pubDate']:
+                    if col in row and row[col]:
+                        started = str(row[col])[:16]
+                        break
 
-            if title:
                 results.append({
-                    "title": title.strip(),
+                    "title": title,
                     "articles": articles,
                     "traffic": traffic,
                     "started": started,
                 })
+            except Exception as row_err:
+                print(f"[discovery] Error processing realtime row {i}: {row_err}")
+                continue
 
-        print(f"[discovery] fetch_realtime_trends: returning {len(results)} clusters")
+        print(f"[discovery] fetch_realtime_trends returning {len(results)} items")
         return results
+
     except Exception as e:
-        print(f"[discovery] fetch_realtime_trends FAILED: {e}")
+        print(f"[discovery] fetch_realtime_trends error: {e}")
         traceback.print_exc()
         return []
 
 
 def build_discovery_data():
-    print("[discovery] build_discovery_data: starting")
-    error = None
+    print("[discovery] Starting build_discovery_data")
+    start = time.time()
 
-    try:
-        top20 = fetch_trending_now()
-    except Exception as e:
-        top20 = []
-        error = str(e)
+    error_messages = []
 
-    try:
-        realtime = fetch_realtime_trends()
-    except Exception as e:
-        realtime = []
-        if not error:
-            error = str(e)
+    top20 = fetch_trending_now()
+    if not top20:
+        error_messages.append("trending_searches returned no data")
+
+    time.sleep(2)
+
+    realtime = fetch_realtime_trends()
+    if not realtime:
+        error_messages.append("realtime_trending_searches returned no data")
 
     quadrant_data = []
-    realtime_titles = set()
-
-    for rank_idx, cluster in enumerate(realtime):
-        title = cluster.get("title", "")
-        realtime_titles.add(title.lower().strip())
-
-        velocity = max(95 - (rank_idx * 7), 20)
-        num_articles = len(cluster.get("articles", []))
-        if num_articles == 0:
+    for i, item in enumerate(realtime):
+        velocity = max(95 - (i * 6), 20)
+        article_count = len(item.get('articles', []))
+        if article_count == 0:
             coverage = 10
-        elif num_articles == 1:
+        elif article_count == 1:
             coverage = 25
-        elif num_articles == 2:
+        elif article_count == 2:
             coverage = 45
         else:
-            coverage = min(70 + (num_articles - 3) * 10, 95)
+            coverage = min(70 + ((article_count - 3) * 10), 95)
 
         quadrant_data.append({
-            "query": title,
+            "query": item["title"],
             "velocity": velocity,
             "coverage": coverage,
-            "articles": cluster.get("articles", []),
-            "traffic": cluster.get("traffic", ""),
-            "started": cluster.get("started", ""),
-        })
-
-    for item in top20:
-        query = item.get("query", "")
-        if query.lower().strip() in realtime_titles:
-            continue
-        rank = item.get("rank", 10)
-        quadrant_data.append({
-            "query": query,
-            "velocity": max(60 - (rank * 2), 20),
-            "coverage": 20,
-            "articles": [],
+            "articles": item.get("articles", []),
             "traffic": item.get("traffic", ""),
             "started": item.get("started", ""),
         })
 
+    realtime_titles = [q["query"].lower() for q in quadrant_data]
     for item in top20:
-        item["traffic"] = item.get("traffic", "")
-        item["started"] = item.get("started", "")
+        if item["query"].lower() not in realtime_titles:
+            velocity = max(60 - (item["rank"] * 2), 20)
+            quadrant_data.append({
+                "query": item["query"],
+                "velocity": velocity,
+                "coverage": 20,
+                "articles": [],
+                "traffic": item.get("traffic", ""),
+                "started": item.get("started", ""),
+            })
 
     result = {
         "quadrant_data": quadrant_data,
         "top20": top20,
-        "cached_at": datetime.now(timezone.utc).isoformat(),
-        "error": error,
+        "cached_at": datetime.utcnow().isoformat(),
+        "error": "; ".join(error_messages) if error_messages else None,
     }
-    print(f"[discovery] build_discovery_data: {len(quadrant_data)} quadrant points, {len(top20)} top20 items, error={error}")
+
+    print(f"[discovery] build_discovery_data completed in {time.time()-start:.1f}s")
+    print(f"[discovery] quadrant_data count: {len(quadrant_data)}")
+    print(f"[discovery] top20 count: {len(top20)}")
+
     return result

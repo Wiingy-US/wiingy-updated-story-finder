@@ -623,6 +623,7 @@
       const [discoveryData, setDiscoveryData] = useState(null);
       const [discoveryLoading, setDiscoveryLoading] = useState(false);
       const [discoveryError, setDiscoveryError] = useState(null);
+      const [showRawDiscovery, setShowRawDiscovery] = useState(false);
       const discoveryLoadedRef = useRef(false);
       const [explorerPrefill, setExplorerPrefill] = useState(null);
 
@@ -1008,6 +1009,12 @@
                   </div>
                 )}
 
+                {!discoveryLoading && discoveryData && (!discoveryData.quadrant_data || discoveryData.quadrant_data.length === 0) && (!discoveryData.top20 || discoveryData.top20.length === 0) && !discoveryError && (
+                  <div className="border border-gray-200 bg-gray-50 text-gray-600 rounded-lg p-4 text-sm text-center">
+                    Google Trends returned no data. This can happen due to rate limiting. Please wait 60 seconds and click Refresh.
+                  </div>
+                )}
+
                 {/* Pitch Quadrant */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                   <div className="flex items-center gap-1.5">
@@ -1023,11 +1030,21 @@
                     {discoveryData && discoveryData.quadrant_data && discoveryData.quadrant_data.length > 0 ? (
                       <QuadrantChart data={discoveryData.quadrant_data} onPointClick={handleExplorerHandoff} />
                     ) : !discoveryLoading ? (
-                      <div className="h-full flex items-center justify-center text-sm text-gray-500 text-center">
-                        <div><Spinner size="w-6 h-6" /><p className="mt-2">Trend data is loading. This may take up to 30 seconds on first load.</p></div>
+                      <div className="h-full flex items-center justify-center text-sm text-gray-500 text-center px-4">
+                        {discoveryData ? 'No quadrant data available. Click Refresh to try again.' : 'Trend data is loading. This may take up to 30 seconds on first load.'}
                       </div>
                     ) : null}
                   </div>
+                  {discoveryData && (
+                    <div className="pt-1">
+                      <button onClick={() => setShowRawDiscovery(!showRawDiscovery)} className="text-xs text-brand hover:underline">
+                        {showRawDiscovery ? 'Hide raw API response' : 'Show raw API response'}
+                      </button>
+                      {showRawDiscovery && (
+                        <pre className="mt-2 text-[10px] bg-gray-50 border border-gray-200 rounded p-3 overflow-auto max-h-64 whitespace-pre-wrap break-words">{JSON.stringify(discoveryData, null, 2)}</pre>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Top 20 Trending Table */}
