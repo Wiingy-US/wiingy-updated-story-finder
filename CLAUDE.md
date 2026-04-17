@@ -49,15 +49,21 @@ Brand relevance: intersects tutoring/edtech/AI learning/parenting/test prep/codi
 Journalistic value: credible, data-backed, publishable in a newsroom
 Timeliness: published in last 24 hours, actively trending
 
-## Trends tab (Google Trends via pytrends)
-Live Google Trends data for education/edtech keywords. Three endpoints:
-- POST /api/trends/search — fetch trends for user keywords, timeframe, state
-- GET /api/trends/searches — last 10 trend searches
-- GET /api/trends/default — preloads online tutoring/edtech/AI in education/
-  SAT prep/coding for kids for the Trends tab on first open
-Returns three data sections: interest_over_time (line chart), related_queries
-(rising + top per keyword), interest_by_region (top US states).
-Frontend renders line chart + horizontal bar chart via Chart.js CDN.
+## Discovery tab (Google Trends via pytrends)
+backend/agents/discovery_scraper.py with three functions:
+- fetch_trending_now() — top 20 trending searches via trending_searches()
+- fetch_realtime_trends() — up to 13 real-time story clusters via
+  realtime_trending_searches()
+- build_discovery_data() — combines both, calculates velocity/coverage
+  scores, returns quadrant_data + top20 arrays
+backend/discovery_cache.py — in-memory cache with 30-minute TTL. Persists
+within a single Vercel function instance; empty on cold starts.
+Two endpoints:
+- GET /api/discovery — returns cached data or fetches fresh
+- GET /api/discovery/refresh — forces a fresh fetch
+Frontend renders a Pitch Quadrant scatter chart (Chart.js) plotting
+velocity vs coverage, and a sortable Top 20 Trending table. Clicking
+any trend hands off the query to the Search tab.
 
 ## Do NOT build in Part 1
 No Google Docs API. No email/SMTP. No GitHub Actions cron.

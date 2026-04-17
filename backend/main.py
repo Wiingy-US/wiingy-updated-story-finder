@@ -26,13 +26,16 @@ from backend.database import (
     get_recent_searches,
     get_story_by_id,
     get_angle_by_story_id,
-    save_trend_search,
-    get_recent_trend_searches,
 )
 from backend.agents.news_scraper import fetch_all_news
 from backend.agents.relevance_scorer import score_story
 from backend.agents.angle_generator import generate_angle
-from backend.agents.trend_scraper import fetch_google_trends
+from backend.agents.discovery_scraper import build_discovery_data
+from backend.discovery_cache import (
+    get_cached_discovery,
+    set_cached_discovery,
+    get_cache_age_seconds,
+)
 
 
 @asynccontextmanager
@@ -59,28 +62,11 @@ class SearchRequest(BaseModel):
     us_state: str = "all"
 
 
-class TrendSearchRequest(BaseModel):
-    keywords: list[str]
-    timeframe: str = "today 7-d"
-    us_state: str = "all"
-
-
-DEFAULT_TREND_KEYWORDS = [
-    "tutoring",
-    "edtech",
-    "SAT prep",
-    "online learning",
-    "coding",
-]
-
-
-def _serialize_trends(result):
-    """Convert any non-JSON-serialisable values to strings for safe response."""
+def _serialize(result):
     try:
         json.dumps(result)
         return result
     except (TypeError, ValueError):
-        # Fallback: stringify any non-serialisable values
         def _clean(v):
             if isinstance(v, dict):
                 return {str(k): _clean(val) for k, val in v.items()}
@@ -266,74 +252,43 @@ async def api_export_favourites():
     )
 
 
-# Note: this endpoint may be slow due to pytrends rate limits
-@app.post("/api/trends/search")
-async def api_trends_search(req: TrendSearchRequest):
+@app.get("/api/discovery")
+async def api_discovery():
     try:
-        result = fetch_google_trends(
-            req.keywords, req.timeframe, "US", req.us_state
-        )
-        try:
-            trend_search_id = save_trend_search(req.keywords, req.timeframe, req.us_state)
-            result["trend_search_id"] = trend_search_id
-        except Exception as save_err:
-            print(f"[trends] save_trend_search failed: {save_err}")
-        result = _serialize_trends(result)
-        print(f"[trends] /api/trends/search returning: keywords={result.get('keywords')}, "
-              f"iot={len(result.get('interest_over_time') or [])}, "
-              f"rq_keys={list((result.get('related_queries') or {}).keys())}, "
-              f"ibr={len(result.get('interest_by_region') or [])}, "
-              f"error={result.get('error')}")
-        return result
+        cached = get_cached_discovery()
+        if cached is not None:
+            cached["cache_age_seconds"] = get_cache_age_seconds()
+            return _serialize(cached)
+        data = build_discovery_data()
+        set_cached_discovery(data)
+        data["cache_age_seconds"] = 0
+        return _serialize(data)
     except Exception as e:
         traceback.print_exc()
         return {
-            "keywords": req.keywords,
-            "timeframe": req.timeframe,
-            "us_state": req.us_state,
-            "interest_over_time": [],
-            "related_queries": {},
-            "interest_by_region": [],
-            "error": f"Google Trends unavailable: {str(e)}",
+            "quadrant_data": [],
+            "top20": [],
+            "error": f"Discovery unavailable: {str(e)}",
+            "cached_at": None,
+            "cache_age_seconds": None,
         }
 
 
-@app.get("/api/trends/searches")
-async def api_trends_searches():
-    searches = get_recent_trend_searches()
-    for s in searches:
-        if isinstance(s.get("keywords"), str):
-            try:
-                s["keywords"] = json.loads(s["keywords"])
-            except (json.JSONDecodeError, TypeError):
-                pass
-    return searches
-
-
-# Note: this endpoint may be slow due to pytrends rate limits
-@app.get("/api/trends/default")
-async def api_trends_default():
+@app.get("/api/discovery/refresh")
+async def api_discovery_refresh():
     try:
-        result = fetch_google_trends(
-            DEFAULT_TREND_KEYWORDS, "today 7-d", "US", "all"
-        )
-        result = _serialize_trends(result)
-        print(f"[trends] /api/trends/default returning: keywords={result.get('keywords')}, "
-              f"iot={len(result.get('interest_over_time') or [])}, "
-              f"rq_keys={list((result.get('related_queries') or {}).keys())}, "
-              f"ibr={len(result.get('interest_by_region') or [])}, "
-              f"error={result.get('error')}")
-        return result
+        data = build_discovery_data()
+        set_cached_discovery(data)
+        data["cache_age_seconds"] = 0
+        return _serialize(data)
     except Exception as e:
         traceback.print_exc()
         return {
-            "keywords": DEFAULT_TREND_KEYWORDS,
-            "timeframe": "today 7-d",
-            "us_state": "all",
-            "interest_over_time": [],
-            "related_queries": {},
-            "interest_by_region": [],
-            "error": f"Google Trends unavailable: {str(e)}",
+            "quadrant_data": [],
+            "top20": [],
+            "error": f"Discovery refresh failed: {str(e)}",
+            "cached_at": None,
+            "cache_age_seconds": None,
         }
 
 

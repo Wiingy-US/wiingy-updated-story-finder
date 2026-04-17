@@ -63,16 +63,6 @@ def init_db():
         )
     """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS trend_searches (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            keywords TEXT,
-            timeframe TEXT,
-            us_state TEXT,
-            created_at TEXT
-        )
-    """)
-
     # Safe migrations for existing databases
     cursor.execute("PRAGMA table_info(content_angles)")
     cols = {row[1] for row in cursor.fetchall()}
@@ -243,31 +233,6 @@ def get_story_by_id(story_id):
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
-
-
-def save_trend_search(keywords, timeframe, us_state):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO trend_searches (keywords, timeframe, us_state, created_at) VALUES (?, ?, ?, ?)",
-        (json.dumps(keywords), timeframe, us_state, datetime.utcnow().isoformat())
-    )
-    trend_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return trend_id
-
-
-def get_recent_trend_searches(limit=10):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT * FROM trend_searches ORDER BY created_at DESC LIMIT ?",
-        (limit,)
-    )
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
 
 
 def get_angle_by_story_id(story_id):
