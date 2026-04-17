@@ -209,6 +209,28 @@
       'UNKNOWN': 'bg-gray-500 text-white',
     };
 
+    const CATEGORY_STYLE = {
+      'Music':     { cls: 'text-white', bg: '#0F6E56', label: '♪ Music' },
+      'Education': { cls: 'text-white', bg: '#534AB7', label: 'Education' },
+      'Test Prep': { cls: 'text-white', bg: '#BA7517', label: 'Test Prep' },
+      'EdTech':    { cls: 'text-white', bg: '#1D6FA4', label: 'EdTech' },
+      'Parenting': { cls: 'text-white', bg: '#3B6D11', label: 'Parenting' },
+      'Workforce': { cls: 'text-white', bg: '#5F5E5A', label: 'Workforce' },
+    };
+    const CATEGORY_DEFAULT_BG = '#888780';
+
+    function CategoryPill({ category }) {
+      if (!category) return null;
+      const style = CATEGORY_STYLE[category];
+      const bg = style ? style.bg : CATEGORY_DEFAULT_BG;
+      const label = style ? style.label : category;
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ backgroundColor: bg }}>
+          {label}
+        </span>
+      );
+    }
+
     function copyAnglePackage(a) {
       const text = `${a.title || ''}\n\n${a.learning_angle || ''}\n\n${a.wiingy_link || ''}`.trim();
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -475,8 +497,10 @@
         setMusicExpandCmd('collapse');
       }
 
+      const cardBg = isMusic && story.category === 'Music' ? 'bg-[#f0faf6] border-l-2 border-l-teal' : '';
+
       return (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+        <div className={`bg-white border border-gray-200 rounded-lg p-4 space-y-3 ${cardBg}`}>
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <a href={story.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-gray-900 hover:text-brand leading-snug block">
@@ -497,6 +521,8 @@
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {story.keyword && <Pill text={story.keyword} color="bg-gray-100 text-gray-600" />}
+              {story.category && <CategoryPill category={story.category} />}
+              {isMusic && story.category === 'Music' && <span className="text-teal text-[16px]" title="Music story">♪</span>}
               <Heart filled={!!story.is_favourite} onClick={() => onFav(story.id)} />
             </div>
           </div>
@@ -506,7 +532,6 @@
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-medium text-gray-500">Overall</span>
                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-brand text-white text-xs font-bold">{story.overall_score?.toFixed?.(1) ?? story.overall_score}</span>
-                {story.category && <Pill text={story.category} color="bg-teal/10 text-teal" />}
               </div>
               <ScoreBar label="Brand Relevance" score={story.brand_relevance_score} color="bg-brand" />
               <ScoreBar label="Journalistic Value" score={story.journalistic_value_score} color="bg-green" />
@@ -1094,12 +1119,34 @@
                 {searchMeta && (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm text-gray-600">
-                        Found <strong>{searchMeta.total}</strong> stories for <strong>{searchMeta.keywords.join(', ')}</strong>
-                        {searchMeta.total > 0 && (
-                          <span className="text-gray-400"> — {guardianCount} from The Guardian, {rssCount} from RSS</span>
-                        )}
-                      </p>
+                      <div>
+                        <p className="text-sm text-gray-600">
+                          Found <strong>{searchMeta.total}</strong> stories for <strong>{searchMeta.keywords.join(', ')}</strong>
+                          {searchMeta.total > 0 && (
+                            <span className="text-gray-400"> — {guardianCount} from The Guardian, {rssCount} from RSS</span>
+                          )}
+                        </p>
+                        {(() => {
+                          const catCounts = {};
+                          stories.forEach(s => { if (s.category) catCounts[s.category] = (catCounts[s.category] || 0) + 1; });
+                          const entries = Object.entries(catCounts);
+                          if (entries.length === 0) return null;
+                          return (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              {entries.map(([cat, count]) => {
+                                const style = CATEGORY_STYLE[cat];
+                                const bg = style ? style.bg : CATEGORY_DEFAULT_BG;
+                                const label = style ? style.label : cat;
+                                return (
+                                  <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ backgroundColor: bg }}>
+                                    {label} ({count})
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1">
                           <option value="recent">Most Recent</option>
