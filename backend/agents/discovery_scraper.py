@@ -1,39 +1,78 @@
+import feedparser
+import requests
 import time
 import traceback
+import random
 from datetime import datetime
+
+TRENDING_RSS_URL = "https://trends.google.com/trending/rss?geo=US"
 
 
 def fetch_trending_now():
-    print("[discovery] Starting fetch_trending_now")
+    print("[discovery] Fetching trending RSS from Google Trends")
     try:
-        from pytrends.request import TrendReq
-        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
-        print("[discovery] TrendReq initialized")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; WiingyBot/1.0)',
+            'Accept': 'application/rss+xml, application/xml, text/xml'
+        }
 
-        df = pytrends.trending_searches(pn='united_states')
-        print(f"[discovery] trending_searches returned: type={type(df)}")
+        response = requests.get(
+            TRENDING_RSS_URL,
+            headers=headers,
+            timeout=15
+        )
+        print(f"[discovery] RSS response status: {response.status_code}")
 
-        if df is None:
-            print("[discovery] trending_searches returned None")
+        if response.status_code != 200:
+            print(f"[discovery] RSS request failed with status {response.status_code}")
             return []
 
-        if hasattr(df, 'empty') and df.empty:
-            print("[discovery] trending_searches returned empty dataframe")
-            return []
+        feed = feedparser.parse(response.text)
+        print(f"[discovery] RSS feed entries: {len(feed.entries)}")
 
-        print(f"[discovery] dataframe shape: {df.shape}")
-        print(f"[discovery] dataframe columns: {list(df.columns)}")
+        if not feed.entries:
+            print("[discovery] No entries in RSS feed")
+            return []
 
         results = []
-        col = df.columns[0]
-        for i, val in enumerate(df[col].tolist()[:20]):
+        for i, entry in enumerate(feed.entries[:20]):
+            title = entry.get('title', '')
+
+            traffic = ''
+            if hasattr(entry, 'ht_approx_traffic'):
+                traffic = entry.ht_approx_traffic
+
+            articles = []
+            news_items = []
+            for key in entry.keys():
+                if 'news_item_title' in key.lower():
+                    val = entry.get(key, '')
+                    if val and val not in news_items:
+                        news_items.append(str(val))
+            if news_items:
+                articles = news_items[:3]
+            elif hasattr(entry, 'ht_news_item_title'):
+                articles = [entry.ht_news_item_title]
+
+            started = ''
+            if entry.get('published', ''):
+                started = entry.published[:16]
+
+            picture = ''
+            if hasattr(entry, 'ht_picture'):
+                picture = entry.ht_picture
+
             results.append({
                 "rank": i + 1,
-                "query": str(val),
+                "query": title,
                 "category": "",
-                "traffic": "",
-                "started": "",
+                "traffic": traffic,
+                "started": started,
+                "articles": articles,
+                "picture": picture,
             })
+
+            print(f"[discovery] Parsed trend {i+1}: {title} (traffic: {traffic})")
 
         print(f"[discovery] fetch_trending_now returning {len(results)} items")
         return results
@@ -45,144 +84,57 @@ def fetch_trending_now():
 
 
 def fetch_realtime_trends():
-    print("[discovery] Starting fetch_realtime_trends")
-    try:
-        from pytrends.request import TrendReq
-        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
-        print("[discovery] TrendReq initialized for realtime")
-        time.sleep(1)
-
-        df = pytrends.realtime_trending_searches(pn='US')
-        print(f"[discovery] realtime_trending_searches returned: type={type(df)}")
-
-        if df is None:
-            print("[discovery] realtime returned None")
-            return []
-
-        if hasattr(df, 'empty') and df.empty:
-            print("[discovery] realtime returned empty dataframe")
-            return []
-
-        print(f"[discovery] realtime shape: {df.shape}")
-        print(f"[discovery] realtime columns: {list(df.columns)}")
-
-        results = []
-        for i, row in df.iterrows():
-            if i >= 13:
-                break
-            try:
-                title = ""
-                for col in ['title', 'query', 'entityNames', 'Title']:
-                    if col in row and row[col]:
-                        title = str(row[col])
-                        break
-                if not title:
-                    title = str(row.iloc[0])
-
-                articles = []
-                for col in ['articles', 'news', 'Stories']:
-                    if col in row and row[col]:
-                        raw = row[col]
-                        if isinstance(raw, list):
-                            articles = [
-                                str(a.get('articleTitle', a.get('title', str(a))))
-                                for a in raw[:3] if isinstance(a, dict)
-                            ]
-                        elif isinstance(raw, str):
-                            articles = [raw[:100]]
-                        break
-
-                traffic = ""
-                for col in ['formattedTraffic', 'traffic', 'Traffic']:
-                    if col in row and row[col]:
-                        traffic = str(row[col])
-                        break
-
-                started = ""
-                for col in ['startTime', 'started', 'pubDate']:
-                    if col in row and row[col]:
-                        started = str(row[col])[:16]
-                        break
-
-                results.append({
-                    "title": title,
-                    "articles": articles,
-                    "traffic": traffic,
-                    "started": started,
-                })
-            except Exception as row_err:
-                print(f"[discovery] Error processing realtime row {i}: {row_err}")
-                continue
-
-        print(f"[discovery] fetch_realtime_trends returning {len(results)} items")
-        return results
-
-    except Exception as e:
-        print(f"[discovery] fetch_realtime_trends error: {e}")
-        traceback.print_exc()
-        return []
+    print("[discovery] fetch_realtime_trends: using trending RSS data only")
+    return []
 
 
 def build_discovery_data():
     print("[discovery] Starting build_discovery_data")
     start = time.time()
 
-    error_messages = []
-
     top20 = fetch_trending_now()
+
+    error = None
     if not top20:
-        error_messages.append("trending_searches returned no data")
-
-    time.sleep(2)
-
-    realtime = fetch_realtime_trends()
-    if not realtime:
-        error_messages.append("realtime_trending_searches returned no data")
+        error = "Google Trends RSS returned no data. Please try again."
 
     quadrant_data = []
-    for i, item in enumerate(realtime):
-        velocity = max(95 - (i * 6), 20)
-        article_count = len(item.get('articles', []))
+    for item in top20:
+        rank = item["rank"]
+
+        velocity = max(95 - ((rank - 1) * 4), 15)
+
+        article_count = len(item.get("articles", []))
         if article_count == 0:
-            coverage = 10
+            coverage = 15
         elif article_count == 1:
-            coverage = 25
+            coverage = 30
         elif article_count == 2:
-            coverage = 45
+            coverage = 50
         else:
-            coverage = min(70 + ((article_count - 3) * 10), 95)
+            coverage = min(65 + ((article_count - 3) * 10), 90)
+
+        random.seed(rank)
+        velocity = min(100, max(5, velocity + random.randint(-8, 8)))
+        coverage = min(100, max(5, coverage + random.randint(-5, 5)))
 
         quadrant_data.append({
-            "query": item["title"],
+            "query": item["query"],
             "velocity": velocity,
             "coverage": coverage,
             "articles": item.get("articles", []),
             "traffic": item.get("traffic", ""),
             "started": item.get("started", ""),
+            "rank": rank,
         })
-
-    realtime_titles = [q["query"].lower() for q in quadrant_data]
-    for item in top20:
-        if item["query"].lower() not in realtime_titles:
-            velocity = max(60 - (item["rank"] * 2), 20)
-            quadrant_data.append({
-                "query": item["query"],
-                "velocity": velocity,
-                "coverage": 20,
-                "articles": [],
-                "traffic": item.get("traffic", ""),
-                "started": item.get("started", ""),
-            })
 
     result = {
         "quadrant_data": quadrant_data,
         "top20": top20,
         "cached_at": datetime.utcnow().isoformat(),
-        "error": "; ".join(error_messages) if error_messages else None,
+        "error": error,
     }
 
-    print(f"[discovery] build_discovery_data completed in {time.time()-start:.1f}s")
-    print(f"[discovery] quadrant_data count: {len(quadrant_data)}")
-    print(f"[discovery] top20 count: {len(top20)}")
-
+    print(f"[discovery] Completed in {time.time()-start:.1f}s — "
+          f"{len(top20)} trends, {len(quadrant_data)} quadrant points")
     return result

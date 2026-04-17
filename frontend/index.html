@@ -517,7 +517,10 @@
                 callbacks: {
                   label(ctx) {
                     const r = ctx.raw._raw;
-                    const lines = [r.query, `Velocity: ${r.velocity}  Coverage: ${r.coverage}`];
+                    const lines = [r.query];
+                    if (r.rank) lines.push(`Rank: #${r.rank}`);
+                    if (r.traffic) lines.push(`Traffic: ${r.traffic}`);
+                    lines.push(`Velocity: ${r.velocity}  Coverage: ${r.coverage}`);
                     (r.articles || []).slice(0, 2).forEach(a => lines.push('📰 ' + (typeof a === 'string' ? a : a.articleTitle || '')));
                     return lines;
                   }

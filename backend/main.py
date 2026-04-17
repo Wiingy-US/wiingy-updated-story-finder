@@ -3,6 +3,7 @@ import os
 import csv
 import json
 import traceback
+import feedparser
 from datetime import date
 from contextlib import asynccontextmanager
 
@@ -300,47 +301,39 @@ async def api_discovery_refresh():
 
 @app.get("/api/discovery/debug")
 async def api_discovery_debug():
-    results = {
-        "trending_searches": {"status": "not_run", "data": None, "error": None},
-        "realtime_trending": {"status": "not_run", "data": None, "error": None},
-    }
+    import requests as req_lib
+
+    debug = {}
+
     try:
-        import time as _time
-        from pytrends.request import TrendReq
-
-        pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
-
-        try:
-            df = pytrends.trending_searches(pn='united_states')
-            if df is not None and not df.empty:
-                results["trending_searches"]["status"] = "success"
-                results["trending_searches"]["data"] = df[df.columns[0]].tolist()[:5]
-            else:
-                results["trending_searches"]["status"] = "empty_dataframe"
-        except Exception as e:
-            results["trending_searches"]["status"] = "error"
-            results["trending_searches"]["error"] = str(e)
-            results["trending_searches"]["traceback"] = traceback.format_exc()
-
-        _time.sleep(2)
-
-        try:
-            df2 = pytrends.realtime_trending_searches(pn='US')
-            if df2 is not None and not df2.empty:
-                results["realtime_trending"]["status"] = "success"
-                results["realtime_trending"]["columns"] = list(df2.columns)
-                results["realtime_trending"]["row_count"] = len(df2)
-                results["realtime_trending"]["first_row"] = str(df2.iloc[0].to_dict())
-            else:
-                results["realtime_trending"]["status"] = "empty_dataframe"
-        except Exception as e:
-            results["realtime_trending"]["status"] = "error"
-            results["realtime_trending"]["error"] = str(e)
-            results["realtime_trending"]["traceback"] = traceback.format_exc()
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; WiingyBot/1.0)',
+            'Accept': 'application/rss+xml'
+        }
+        r = req_lib.get(
+            'https://trends.google.com/trending/rss?geo=US',
+            headers=headers,
+            timeout=15
+        )
+        debug["rss_status_code"] = r.status_code
+        debug["rss_content_length"] = len(r.text)
+        debug["rss_first_200_chars"] = r.text[:200]
     except Exception as e:
-        results["import_error"] = str(e)
+        debug["rss_error"] = str(e)
 
-    return results
+    try:
+        feed = feedparser.parse(
+            'https://trends.google.com/trending/rss?geo=US'
+        )
+        debug["feed_entries_count"] = len(feed.entries)
+        if feed.entries:
+            first = feed.entries[0]
+            debug["first_entry_title"] = first.get('title', 'no title')
+            debug["first_entry_keys"] = list(first.keys())
+    except Exception as e:
+        debug["feedparser_error"] = str(e)
+
+    return debug
 
 
 @app.get("/api/debug/guardian")

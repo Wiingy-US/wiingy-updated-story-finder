@@ -4,4 +4,3 @@ google-generativeai>=0.8.0
 feedparser
 python-dotenv
 requests
-pytrends
