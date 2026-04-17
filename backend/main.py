@@ -336,6 +336,32 @@ async def api_discovery_debug():
     return debug
 
 
+@app.get("/api/debug/angle-routing")
+async def api_debug_angle_routing(story_id: int):
+    from backend.agents.angle_generator import MUSIC_KEYWORDS, _is_music_story
+    story = get_story_by_id(story_id)
+    if not story:
+        return {"error": "Story not found"}
+    story = dict(story)
+    combined_text = (str(story.get("title", "")) + " " + str(story.get("description", ""))).lower()
+    matched = [kw for kw in MUSIC_KEYWORDS if kw in combined_text]
+    cat = str(story.get("category", "")).lower().strip()
+    cat_is_music = cat == "music"
+    kw_is_music = len(matched) >= 2
+    final = _is_music_story(story)
+    return {
+        "story_id": story_id,
+        "title": story.get("title", ""),
+        "category": story.get("category"),
+        "category_contains_music": cat_is_music,
+        "music_keywords_found": matched,
+        "music_keywords_count": len(matched),
+        "is_music_by_keyword": kw_is_music,
+        "final_is_music": final,
+        "routing_decision": "MUSIC FRAMEWORK" if final else "STANDARD 5-LENS",
+    }
+
+
 @app.get("/api/debug/guardian")
 async def api_debug_guardian():
     import requests as req_lib

@@ -478,8 +478,8 @@
       const [musicExpandCmd, setMusicExpandCmd] = useState(null);
       const scored = story.overall_score != null;
       const hasAngles = Array.isArray(story.angles) && story.angles.length > 0;
-      const isMusic = story.is_music;
-      const hasMusicAngle = isMusic && (story.music_angle || story.angle || story.no_angle);
+      const isMusic = story.is_music === true;
+      const hasMusicAngle = isMusic && (story.music_angle != null || story.angle != null || story.no_angle === true) && story.angles == null;
       const hasAnyAngle = hasAngles || hasMusicAngle;
       const topicReasoning = story.topic_reasoning;
 
@@ -897,6 +897,10 @@
         try {
           const r = await api(`/api/stories/${id}/angle`, { method: 'POST' });
           const s = await r.json();
+          console.log('[angle] API response:', JSON.stringify(s, null, 2));
+          console.log('[angle] is_music:', s.is_music);
+          console.log('[angle] has angle:', s.music_angle !== null && s.music_angle !== undefined);
+          console.log('[angle] has angles:', Array.isArray(s.angles));
           setStories(prev => prev.map(x => x.id === id ? { ...x, ...s } : x));
         } catch (e) { toast('Angle generation failed'); }
         setAnglingId(null);
@@ -976,6 +980,7 @@
         try {
           const r = await api(`/api/stories/${id}/angle`, { method: 'POST' });
           const s = await r.json();
+          console.log('[angle] Fav API response:', JSON.stringify(s, null, 2));
           setFavs(prev => prev.map(x => x.id === id ? { ...x, ...s } : x));
         } catch (e) { toast('Angle generation failed'); }
         setAnglingId(null);

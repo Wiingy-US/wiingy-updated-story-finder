@@ -7,10 +7,13 @@ load_dotenv()
 
 PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "prompts")
 
-MUSIC_SIGNALS = [
+MUSIC_KEYWORDS = [
     'music', 'song', 'album', 'artist', 'concert', 'band',
     'singer', 'piano', 'guitar', 'violin', 'grammy', 'festival',
     'musician', 'orchestra', 'choir', 'instrument', 'musical',
+    'hip hop', 'rap', 'jazz', 'classical', 'pop star', 'playlist',
+    'spotify', 'record label', 'music video', 'lyrics', 'melody',
+    'rhythm', 'composition', 'soundcheck', 'tour', 'debut album',
 ]
 
 
@@ -31,21 +34,30 @@ def _parse_response(text):
 
 
 def _is_music_story(story):
-    cat = str(story.get("category", "")).lower()
-    if "music" in cat:
-        return True
-    text = (str(story.get("title", "")) + " " + str(story.get("description", ""))).lower()
-    hits = sum(1 for kw in MUSIC_SIGNALS if kw in text)
-    return hits >= 3
+    cat = str(story.get("category", "")).lower().strip()
+    is_music_by_category = cat == "music"
+
+    combined_text = (
+        str(story.get("title", "")) + " " +
+        str(story.get("description", ""))
+    ).lower()
+    matched = [kw for kw in MUSIC_KEYWORDS if kw in combined_text]
+    is_music_by_keywords = len(matched) >= 2
+
+    print(f"[angle] Music detection: category='{story.get('category')}', "
+          f"cat_match={is_music_by_category}, keywords_matched={matched}, "
+          f"kw_match={is_music_by_keywords}")
+
+    return is_music_by_category or is_music_by_keywords
 
 
 def _build_music_prompt(brand_context):
     return (
-        brand_context + "\n\n"
-        "This story is categorised as MUSIC. Follow the MUSIC CONTENT "
-        "FRAMEWORK from the brand context exactly. Do not use the standard "
-        "5-lens system.\n\n"
-        "Work through all 5 steps in order:\n"
+        "THIS IS A MUSIC STORY. You must use the Music Content Framework "
+        "ONLY. DO NOT generate 5 lens-based angles. DO NOT use the standard "
+        "5-lens format. Follow the music framework steps exactly.\n\n"
+        + brand_context + "\n\n"
+        "Work through all 5 steps of the MUSIC CONTENT FRAMEWORK in order:\n"
         "1. NEWS TYPE CLASSIFICATION\n"
         "2. GENUINE ANGLE GATE — if the story fails, stop and return "
         "no_angle=true with a reason\n"
@@ -63,10 +75,9 @@ def _build_music_prompt(brand_context):
         '  "music_news_type": "one of: Festival/Event, Artist News, '
         'Industry Trend, Chart/Data, Music Tech, Film/Soundtrack, '
         'Music Education, Awards",\n'
-        '  "no_angle": true or false,\n'
-        '  "no_angle_reason": "string or null",\n'
-        '  "recommended_style": "CULTURAL THINK-PIECE" or "POLICY IMPACT" '
-        'or "NEWS CONSEQUENCE",\n'
+        '  "no_angle": false,\n'
+        '  "no_angle_reason": null,\n'
+        '  "recommended_style": "CULTURAL THINK-PIECE",\n'
         '  "style_reason": "string",\n'
         '  "topic_reasoning": "string",\n'
         '  "reasoning_chain": {\n'
@@ -86,45 +97,35 @@ def _build_music_prompt(brand_context):
         '  "angles": null\n'
         "}\n\n"
         "If no_angle is true, set reasoning_chain to null, bridge to null, "
-        "bridge_reason to null, and angle to null."
+        "bridge_reason to null, and angle to null.\n"
+        "IMPORTANT: The 'angles' field must be null. Do NOT return an array of 5 angles."
     )
 
 
 def _build_standard_prompt(brand_context):
     return (
-        brand_context + "\n\n"
+        "THIS IS A NON-MUSIC STORY. Use the standard 5-lens system. "
+        "DO NOT use the music framework.\n\n"
+        + brand_context + "\n\n"
         "You are a content strategist for the Wiingy Newsroom. Given a news "
         "story, you must do three things:\n\n"
         "STEP 1 — TOPIC REASONING (1-2 sentences):\n"
         "Why is this story worth covering from an education and learning "
-        "perspective? What makes it timely for students, parents, or educators "
-        "right now? This is internal guidance for the editor only.\n\n"
+        "perspective?\n\n"
         "STEP 2 — RECOMMENDED STYLE:\n"
-        "Decide which of the three content styles best fits this story. Choose "
-        "exactly one and explain why in one sentence.\n\n"
-        "The three styles are:\n"
-        "- POLICY IMPACT: for government policy, job market shifts, economic "
-        "changes, industry disruption, workforce trends\n"
-        "- CULTURAL THINK-PIECE: for viral trends, cultural moments, tech "
-        "behavior, social media, generational debates, AI controversy\n"
-        "- NEWS CONSEQUENCE: for geopolitical events, natural disasters, "
-        "economic shocks, health crises, or external events with indirect "
-        "effects on students\n\n"
+        "Choose one: POLICY IMPACT, CULTURAL THINK-PIECE, or NEWS CONSEQUENCE. "
+        "Explain why in one sentence.\n\n"
         "STEP 3 — FIVE CONTENT ANGLES:\n"
-        "Write 5 distinct content angles, each from a different lens. All five "
-        "must use the recommended style you selected in Step 2.\n\n"
-        "Each angle has four parts:\n\n"
-        "1. title: A punchy editorial headline. Not a question. Not clickbait.\n"
-        "2. learning_angle: 2-3 sentences on the core educational insight. "
-        "Never start with Wiingy.\n"
-        "3. wiingy_link: Exactly 1 sentence connecting back to Wiingy. Tone "
-        "matches the recommended style.\n"
-        "4. suggested_sources: 2-3 sources the writer should look up.\n\n"
-        "The five lenses: Student, Parent, Educator, System, Opportunity.\n\n"
-        "Rules: Never start title or learning_angle with Wiingy. Each angle "
-        "genuinely distinct. wiingy_link matches style tone.\n\n"
+        "Write 5 angles, each from a different lens. Each has:\n"
+        "1. title: Punchy editorial headline. Not a question.\n"
+        "2. learning_angle: 2-3 sentences. Never start with Wiingy.\n"
+        "3. wiingy_link: 1 sentence. Tone matches style.\n"
+        "4. suggested_sources: 2-3 sources.\n\n"
+        "Lenses: Student, Parent, Educator, System, Opportunity.\n\n"
         "Return ONLY valid JSON, no markdown fences:\n"
         "{\n"
+        '  "is_music": false,\n'
+        '  "no_angle": false,\n'
         '  "topic_reasoning": "string",\n'
         '  "recommended_style": "POLICY IMPACT" or "CULTURAL THINK-PIECE" or "NEWS CONSEQUENCE",\n'
         '  "style_reason": "string",\n'
@@ -139,22 +140,34 @@ def _build_standard_prompt(brand_context):
         '"wiingy_link": "string", "suggested_sources": "string" },\n'
         '    { "lens": "Opportunity", "title": "string", "learning_angle": "string", '
         '"wiingy_link": "string", "suggested_sources": "string" }\n'
-        "  ]\n"
-        "}"
+        '  ],\n'
+        '  "angle": null\n'
+        "}\n"
+        "IMPORTANT: The 'angle' field must be null. Return an array of 5 angles."
     )
 
 
 def generate_angle(story):
+    print(f"[angle] === generate_angle START ===")
+    print(f"[angle] Story category: {story.get('category')}")
+    print(f"[angle] Story title: {story.get('title')}")
+    print(f"[angle] Routing check starting...")
+
     api_key = os.getenv("GEMINI_API_KEY")
     genai.configure(api_key=api_key)
 
     brand_context = _load_prompt("wiingy_brand_context.txt")
     is_music = _is_music_story(story)
+    print(f"[angle] FINAL is_music decision: {is_music}")
 
     if is_music:
+        print("[angle] ROUTING TO: Music Content Framework")
         system_prompt = _build_music_prompt(brand_context)
     else:
+        print("[angle] ROUTING TO: Standard 5-lens system")
         system_prompt = _build_standard_prompt(brand_context)
+
+    print(f"[angle] System prompt preview: {system_prompt[:200]}")
 
     user_message = (
         f"Story title: {story.get('title', '')}\n"
@@ -169,9 +182,26 @@ def generate_angle(story):
     for attempt in range(2):
         try:
             response = model.generate_content(user_message)
-            result = _parse_response(response.text)
+            raw = response.text
+            print(f"[angle] Raw Gemini response preview: {raw[:300]}")
 
+            result = _parse_response(raw)
+            print(f"[angle] Parsed JSON keys: {list(result.keys())}")
+            print(f"[angle] is_music in response: {result.get('is_music')}")
+            print(f"[angle] 'angles' in response: {'angles' in result}")
+            print(f"[angle] 'angle' in response: {'angle' in result}")
+
+            # Validate response format matches routing
             if is_music:
+                if result.get("angle") is None and not result.get("no_angle"):
+                    print("[angle] WARNING: Music response missing angle field — retrying")
+                    if attempt == 0:
+                        continue
+                if result.get("angles") is not None and isinstance(result.get("angles"), list):
+                    print("[angle] WARNING: Music response has 5-lens angles array — wrong format")
+                    if attempt == 0:
+                        continue
+
                 story["is_music"] = True
                 story["music_news_type"] = result.get("music_news_type", "")
                 story["no_angle"] = bool(result.get("no_angle", False))
@@ -185,6 +215,13 @@ def generate_angle(story):
                 story["angle"] = result.get("angle")
                 story["angles"] = None
             else:
+                if not isinstance(result.get("angles"), list):
+                    print("[angle] WARNING: Non-music response missing angles array — retrying")
+                    if attempt == 0:
+                        continue
+                if result.get("angle") is not None:
+                    print("[angle] WARNING: Non-music response has single angle — wrong format")
+
                 story["is_music"] = False
                 story["no_angle"] = False
                 story["no_angle_reason"] = None
@@ -197,8 +234,11 @@ def generate_angle(story):
                 story["recommended_style"] = result.get("recommended_style", "")
                 story["style_reason"] = result.get("style_reason", "")
                 story["angles"] = result.get("angles", [])
+
+            print(f"[angle] === generate_angle DONE (attempt {attempt + 1}) ===")
             return story
-        except Exception:
+        except Exception as e:
+            print(f"[angle] Attempt {attempt + 1} failed: {e}")
             if attempt == 1:
                 story["is_music"] = is_music
                 story["no_angle"] = False
