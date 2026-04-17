@@ -81,6 +81,15 @@ def init_db():
     add_column_if_not_exists("stories", "byline", "TEXT")
     add_column_if_not_exists("stories", "section", "TEXT")
 
+    add_column_if_not_exists("content_angles", "is_music", "INTEGER DEFAULT 0")
+    add_column_if_not_exists("content_angles", "music_news_type", "TEXT")
+    add_column_if_not_exists("content_angles", "no_angle", "INTEGER DEFAULT 0")
+    add_column_if_not_exists("content_angles", "no_angle_reason", "TEXT")
+    add_column_if_not_exists("content_angles", "reasoning_chain", "TEXT")
+    add_column_if_not_exists("content_angles", "bridge", "TEXT")
+    add_column_if_not_exists("content_angles", "bridge_reason", "TEXT")
+    add_column_if_not_exists("content_angles", "music_angle", "TEXT")
+
     conn.commit()
     conn.close()
 
@@ -159,19 +168,32 @@ def update_story_scores(story_id, scores_dict):
     conn.close()
 
 
-def save_content_angle(story_id, topic_reasoning, recommended_style, style_reason, angles):
+def save_content_angle(story_id, topic_reasoning, recommended_style, style_reason, angles,
+                       is_music=False, music_news_type=None, no_angle=False,
+                       no_angle_reason=None, reasoning_chain=None, bridge=None,
+                       bridge_reason=None, music_angle=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO content_angles
-           (story_id, topic_reasoning, recommended_style, style_reason, angles, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+           (story_id, topic_reasoning, recommended_style, style_reason, angles,
+            is_music, music_news_type, no_angle, no_angle_reason,
+            reasoning_chain, bridge, bridge_reason, music_angle, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             story_id,
             topic_reasoning,
             recommended_style,
             style_reason,
-            json.dumps(angles or []),
+            json.dumps(angles) if angles else "[]",
+            1 if is_music else 0,
+            music_news_type,
+            1 if no_angle else 0,
+            no_angle_reason,
+            json.dumps(reasoning_chain) if reasoning_chain else None,
+            bridge,
+            bridge_reason,
+            json.dumps(music_angle) if music_angle else None,
             datetime.utcnow().isoformat(),
         )
     )
@@ -251,4 +273,14 @@ def get_angle_by_story_id(story_id):
         result["angles"] = json.loads(result["angles"]) if result.get("angles") else []
     except (json.JSONDecodeError, TypeError):
         result["angles"] = []
+    try:
+        result["reasoning_chain"] = json.loads(result["reasoning_chain"]) if result.get("reasoning_chain") else None
+    except (json.JSONDecodeError, TypeError):
+        result["reasoning_chain"] = None
+    try:
+        result["music_angle"] = json.loads(result["music_angle"]) if result.get("music_angle") else None
+    except (json.JSONDecodeError, TypeError):
+        result["music_angle"] = None
+    result["is_music"] = bool(result.get("is_music"))
+    result["no_angle"] = bool(result.get("no_angle"))
     return result

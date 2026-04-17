@@ -314,6 +314,138 @@
       );
     }
 
+    /* ── Music Angle Display ── */
+    function MusicAngleDisplay({ story, expandAllState }) {
+      const [openClass, setOpenClass] = useState(false);
+      const [openChain, setOpenChain] = useState(false);
+      const [openAngle, setOpenAngle] = useState(true);
+      const [copied, setCopied] = useState(false);
+
+      useEffect(() => {
+        if (expandAllState === 'expand') { setOpenClass(true); setOpenChain(true); setOpenAngle(true); }
+        if (expandAllState === 'collapse') { setOpenClass(false); setOpenChain(false); setOpenAngle(false); }
+      }, [expandAllState]);
+
+      const ma = story.music_angle || story.angle;
+      const rc = story.reasoning_chain;
+      const noAngle = story.no_angle;
+
+      function handleCopy(e) {
+        if (e) e.stopPropagation();
+        if (!ma) return;
+        const text = `${ma.title || ''}\n\n${ma.learning_angle || ''}\n\n${ma.wiingy_link || ''}`.trim();
+        if (navigator.clipboard) navigator.clipboard.writeText(text);
+        setCopied(true); setTimeout(() => setCopied(false), 1800);
+      }
+
+      if (noAngle) {
+        return (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+            <span className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-300 text-white text-sm font-bold">✕</span>
+            <div>
+              <p className="font-bold text-gray-700">No learning angle found</p>
+              {story.no_angle_reason && <p className="text-sm italic text-gray-500 mt-1">{story.no_angle_reason}</p>}
+              <p className="text-xs text-gray-400 mt-2">This story was skipped because attaching a learning angle would not be genuine.</p>
+            </div>
+          </div>
+        );
+      }
+
+      const STEPS = [
+        ['step1_specific_observation', 'Specific Observation'],
+        ['step2_invisible_audience', 'Invisible Audience'],
+        ['step3_underlying_mechanism', 'Underlying Mechanism'],
+        ['step4_generalizable_truth', 'Generalizable Truth'],
+      ];
+
+      return (
+        <div className="space-y-3">
+          <Pill text="♪ Music" color="bg-teal/10 text-teal" />
+
+          {/* Section A — Classification */}
+          <Collapsible open={openClass} onToggle={() => setOpenClass(!openClass)} title="Story Type"
+            right={<div className="flex gap-1.5">
+              {story.music_news_type && <Pill text={story.music_news_type} color="bg-teal/10 text-teal" />}
+              {story.recommended_style && <Pill text={story.recommended_style} color={STYLE_BADGE[story.recommended_style] ? STYLE_BADGE[story.recommended_style].replace('text-white','text-white') : 'bg-gray-100 text-gray-600'} />}
+            </div>}>
+            {story.style_reason && <p className="text-sm italic text-gray-500">{story.style_reason}</p>}
+            {story.topic_reasoning && <p className="text-sm text-gray-700 mt-1">{story.topic_reasoning}</p>}
+          </Collapsible>
+
+          {/* Section B — Reasoning Chain */}
+          {rc && (
+            <Collapsible open={openChain} onToggle={() => setOpenChain(!openChain)} title="Reasoning Chain"
+              right={<span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">4 steps</span>}>
+              <div className="space-y-0">
+                {STEPS.map(([key, label], i) => rc[key] && (
+                  <div key={key} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand text-white text-xs font-bold shrink-0">{i+1}</span>
+                      {i < 3 && <div className="w-px flex-1 bg-brand/20 my-1"></div>}
+                    </div>
+                    <div className="pb-4 min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{label}</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{rc[key]}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-center text-xs text-gray-400 py-2 border-t border-gray-100">↓ This led to</div>
+              <div className="flex items-center gap-2 pt-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 shrink-0">Bridge selected</p>
+                {story.bridge && <Pill text={story.bridge} color="bg-brand/10 text-brand" />}
+                {story.bridge_reason && <span className="text-xs italic text-gray-500">{story.bridge_reason}</span>}
+              </div>
+            </Collapsible>
+          )}
+
+          {/* Section C — The Angle */}
+          {ma && (
+            <Collapsible open={openAngle} onToggle={() => setOpenAngle(!openAngle)} title="Music Content Angle"
+              right={<div className="flex items-center gap-2">
+                {story.bridge && <Pill text={story.bridge} color="bg-teal/10 text-teal" />}
+                <button onClick={handleCopy} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-brand">
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>}>
+              <div className="space-y-3">
+                {ma.title && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Article Title</p>
+                    <h3 className="text-[18px] font-bold text-gray-900 leading-snug">{ma.title}</h3>
+                  </div>
+                )}
+                {ma.learning_angle && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Learning Angle</p>
+                    <p className="text-sm text-gray-700 leading-relaxed border-l-4 border-teal pl-3">{ma.learning_angle}</p>
+                  </div>
+                )}
+                {ma.wiingy_link && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Wiingy Link</p>
+                    <div className="flex items-start gap-2">
+                      <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand text-white text-xs font-bold">W</span>
+                      <p className="text-sm italic text-gray-700">{ma.wiingy_link}</p>
+                    </div>
+                  </div>
+                )}
+                {ma.wiingy_data_hook && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Data to Verify Before Publishing</p>
+                    <div className="flex items-start gap-2 bg-amber/10 border border-amber/30 rounded-lg p-3">
+                      <span className="shrink-0 text-amber">⚠</span>
+                      <p className="text-sm text-gray-700">{ma.wiingy_data_hook}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Collapsible>
+          )}
+        </div>
+      );
+    }
+
     /* ── Story Card ── */
     function StoryCard({ story, onScore, onAngle, onFav, scoringId, anglingId }) {
       const [expanded, setExpanded] = useState(false);
@@ -321,8 +453,12 @@
       const [openWhy, setOpenWhy] = useState(true);
       const [openAngles, setOpenAngles] = useState(true);
       const [openCards, setOpenCards] = useState([false, false, false, false, false]);
+      const [musicExpandCmd, setMusicExpandCmd] = useState(null);
       const scored = story.overall_score != null;
       const hasAngles = Array.isArray(story.angles) && story.angles.length > 0;
+      const isMusic = story.is_music;
+      const hasMusicAngle = isMusic && (story.music_angle || story.angle || story.no_angle);
+      const hasAnyAngle = hasAngles || hasMusicAngle;
       const topicReasoning = story.topic_reasoning;
 
       function toggleCard(i) {
@@ -331,10 +467,12 @@
       function expandAll() {
         setOpenStyle(true); setOpenWhy(true); setOpenAngles(true);
         setOpenCards([true, true, true, true, true]);
+        setMusicExpandCmd('expand');
       }
       function collapseAll() {
         setOpenStyle(false); setOpenWhy(false); setOpenAngles(false);
         setOpenCards([false, false, false, false, false]);
+        setMusicExpandCmd('collapse');
       }
 
       return (
@@ -386,7 +524,7 @@
             </div>
           )}
 
-          {(topicReasoning || hasAngles) && (
+          {(topicReasoning || hasAnyAngle) && (
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-end gap-3 text-xs">
                 <button onClick={expandAll} className="text-brand hover:underline">Expand all</button>
@@ -394,58 +532,64 @@
                 <button onClick={collapseAll} className="text-gray-500 hover:text-brand hover:underline">Collapse all</button>
               </div>
 
-              {hasAngles && story.recommended_style && (
-                <Collapsible
-                  open={openStyle}
-                  onToggle={() => setOpenStyle(!openStyle)}
-                  title="Recommended Content Style"
-                  right={
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide ${STYLE_BADGE[story.recommended_style] || STYLE_BADGE['UNKNOWN']}`}>
-                      {story.recommended_style}
-                    </span>
-                  }
-                >
-                  {story.style_reason && (
-                    <p className="text-sm italic text-gray-600">{story.style_reason}</p>
+              {hasMusicAngle ? (
+                <MusicAngleDisplay story={story} expandAllState={musicExpandCmd} />
+              ) : (
+                <>
+                  {hasAngles && story.recommended_style && (
+                    <Collapsible
+                      open={openStyle}
+                      onToggle={() => setOpenStyle(!openStyle)}
+                      title="Recommended Content Style"
+                      right={
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide ${STYLE_BADGE[story.recommended_style] || STYLE_BADGE['UNKNOWN']}`}>
+                          {story.recommended_style}
+                        </span>
+                      }
+                    >
+                      {story.style_reason && (
+                        <p className="text-sm italic text-gray-600">{story.style_reason}</p>
+                      )}
+                    </Collapsible>
                   )}
-                </Collapsible>
-              )}
 
-              {topicReasoning && (
-                <Collapsible
-                  open={openWhy}
-                  onToggle={() => setOpenWhy(!openWhy)}
-                  title="Why This Topic"
-                >
-                  <blockquote className="border-l-4 border-teal pl-3 text-sm italic text-gray-600 bg-gray-50 rounded-r py-2 pr-3">
-                    {topicReasoning}
-                  </blockquote>
-                </Collapsible>
-              )}
+                  {topicReasoning && !isMusic && (
+                    <Collapsible
+                      open={openWhy}
+                      onToggle={() => setOpenWhy(!openWhy)}
+                      title="Why This Topic"
+                    >
+                      <blockquote className="border-l-4 border-teal pl-3 text-sm italic text-gray-600 bg-gray-50 rounded-r py-2 pr-3">
+                        {topicReasoning}
+                      </blockquote>
+                    </Collapsible>
+                  )}
 
-              {hasAngles && (
-                <Collapsible
-                  open={openAngles}
-                  onToggle={() => setOpenAngles(!openAngles)}
-                  title="Content Angles"
-                  right={
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
-                      {story.angles.length} angles
-                    </span>
-                  }
-                  bodyClass="px-3 pb-3 pt-2"
-                >
-                  <div className="grid gap-2">
-                    {story.angles.map((a, i) => (
-                      <AngleCard
-                        key={i}
-                        angle={a}
-                        open={!!openCards[i]}
-                        onToggle={() => toggleCard(i)}
-                      />
-                    ))}
-                  </div>
-                </Collapsible>
+                  {hasAngles && (
+                    <Collapsible
+                      open={openAngles}
+                      onToggle={() => setOpenAngles(!openAngles)}
+                      title="Content Angles"
+                      right={
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                          {story.angles.length} angles
+                        </span>
+                      }
+                      bodyClass="px-3 pb-3 pt-2"
+                    >
+                      <div className="grid gap-2">
+                        {story.angles.map((a, i) => (
+                          <AngleCard
+                            key={i}
+                            angle={a}
+                            open={!!openCards[i]}
+                            onToggle={() => toggleCard(i)}
+                          />
+                        ))}
+                      </div>
+                    </Collapsible>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -456,7 +600,7 @@
                 {scoringId === story.id ? <><Spinner /> Scoring...</> : 'Get Score'}
               </button>
             )}
-            {!hasAngles && (
+            {!hasAnyAngle && (
               <button onClick={() => onAngle(story.id)} disabled={anglingId === story.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded hover:bg-brand/20 disabled:opacity-50">
                 {anglingId === story.id ? <><Spinner /> Generating...</> : 'Get Content Angle'}
               </button>
@@ -778,7 +922,7 @@
       }
 
       async function angleAllFavs() {
-        const need = favs.filter(f => !Array.isArray(f.angles) || f.angles.length === 0);
+        const need = favs.filter(f => !(Array.isArray(f.angles) && f.angles.length > 0) && !f.is_music);
         if (!need.length) return;
         setAngleProgress({ done: 0, total: need.length });
         for (let i = 0; i < need.length; i++) {

@@ -166,16 +166,28 @@ async def api_generate_angle(story_id: int):
         story = get_story_by_id(story_id)
         story = dict(story)
     angled = generate_angle(dict(story))
-    topic_reasoning = angled.get("topic_reasoning", "")
-    recommended_style = angled.get("recommended_style", "")
-    style_reason = angled.get("style_reason", "")
-    angles = angled.get("angles", [])
-    save_content_angle(story_id, topic_reasoning, recommended_style, style_reason, angles)
+    is_music = angled.get("is_music", False)
+    save_content_angle(
+        story_id,
+        angled.get("topic_reasoning", ""),
+        angled.get("recommended_style", ""),
+        angled.get("style_reason", ""),
+        angled.get("angles"),
+        is_music=is_music,
+        music_news_type=angled.get("music_news_type"),
+        no_angle=angled.get("no_angle", False),
+        no_angle_reason=angled.get("no_angle_reason"),
+        reasoning_chain=angled.get("reasoning_chain"),
+        bridge=angled.get("bridge"),
+        bridge_reason=angled.get("bridge_reason"),
+        music_angle=angled.get("angle"),
+    )
     result = dict(get_story_by_id(story_id))
-    result["topic_reasoning"] = topic_reasoning
-    result["recommended_style"] = recommended_style
-    result["style_reason"] = style_reason
-    result["angles"] = angles
+    for key in ("topic_reasoning", "recommended_style", "style_reason", "angles",
+                "is_music", "music_news_type", "no_angle", "no_angle_reason",
+                "reasoning_chain", "bridge", "bridge_reason"):
+        result[key] = angled.get(key)
+    result["music_angle"] = angled.get("angle")
     return result
 
 
@@ -190,15 +202,18 @@ async def api_toggle_favourite(story_id: int):
 
 def _attach_angle(target, angle):
     if angle:
-        target["topic_reasoning"] = angle.get("topic_reasoning")
-        target["recommended_style"] = angle.get("recommended_style")
-        target["style_reason"] = angle.get("style_reason")
+        for key in ("topic_reasoning", "recommended_style", "style_reason",
+                     "is_music", "music_news_type", "no_angle", "no_angle_reason",
+                     "reasoning_chain", "bridge", "bridge_reason", "music_angle"):
+            target[key] = angle.get(key)
         target["angles"] = angle.get("angles") or []
     else:
         target["topic_reasoning"] = None
         target["recommended_style"] = None
         target["style_reason"] = None
         target["angles"] = []
+        target["is_music"] = False
+        target["music_angle"] = None
 
 
 @app.get("/api/favourites")

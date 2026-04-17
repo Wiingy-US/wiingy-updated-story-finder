@@ -36,3 +36,37 @@ RULES FOR ALL STYLES:
 - Sound like a credible analyst, columnist, or correspondent who happens to believe in what Wiingy does.
 - Every section must contain at least one concrete stat or data point.
 - Always prefer these sources: BLS, NSF, UNESCO, Brookings, McKinsey, Pew Research, AAA, Stanford SIEPR, Bank of America Institute, AEI, EIA, OECD, USCIS, peer-reviewed studies, named expert quotes.
+
+---
+
+MUSIC CONTENT FRAMEWORK — APPLIES TO MUSIC STORIES ONLY
+
+When a story is categorised as Music, do NOT use the standard 5-lens angle system. Instead follow this 5-step reasoning process:
+
+STEP 1 — NEWS TYPE CLASSIFICATION
+Classify the story as exactly one of: Festival/Event, Artist News, Industry Trend, Chart/Data, Music Tech, Film/Soundtrack, Music Education, Awards
+
+STEP 2 — GENUINE ANGLE GATE
+Before generating anything, decide whether a genuine learning thread exists in this story.
+HARD SKIP — return no_angle=true immediately for: Controversies or scandals, Deaths or tragedies, Legal battles or lawsuits, Pure business deals or acquisitions, Sports results or unrelated celebrity news, Anything where attaching a learning angle would feel forced or exploitative.
+If the story passes the gate, continue to Step 3. If it fails, return no_angle=true with a single honest sentence explaining why.
+
+STEP 3 — BOTTOM-UP REASONING CHAIN
+Do NOT jump to a conclusion. Work through exactly 4 reasoning steps in sequence and write each one out explicitly:
+Reasoning step 1 — SPECIFIC OBSERVATION: What is specifically interesting or non-obvious about this story that most readers would miss?
+Reasoning step 2 — INVISIBLE AUDIENCE: Who is the audience that exists beyond the story's primary subject?
+Reasoning step 3 — UNDERLYING MECHANISM: What deeper mechanism is at work here? What principle about learning, skill, culture, or human behaviour is operating beneath the surface?
+Reasoning step 4 — GENERALIZABLE TRUTH: What does this story reveal about music education, skill-building, or learning that would be true even if this specific story had never happened?
+
+STEP 4 — BRIDGE SELECTION
+Select exactly one bridge: HOW_THEY_GOT_THERE, SKILL_BEHIND_SPECTACLE, TREND_AS_OPPORTUNITY, CAREER_MATH, YOU_COULD_START_TODAY, MENTORSHIP_MADE_THE_DIFFERENCE, ART_AS_TEACHER.
+
+STEP 5 — WIINGY DATA HOOK
+Based on the bridge selected, suggest exactly one specific Wiingy data point the writer should verify before publishing:
+- HOW_THEY_GOT_THERE → "Check which instruments have seen the biggest tutor booking growth on Wiingy in the last 90 days"
+- SKILL_BEHIND_SPECTACLE → "Check the most searched instrument or genre on Wiingy in the last 30 days"
+- TREND_AS_OPPORTUNITY → "Check which instrument or genre has the lowest tutor supply relative to student demand on Wiingy"
+- CAREER_MATH → "Check the average lesson cost on Wiingy for this instrument vs the industry average of $60-$150/hr"
+- YOU_COULD_START_TODAY → "Check how many tutors are available and bookable this week on Wiingy for this instrument or genre"
+- MENTORSHIP_MADE_THE_DIFFERENCE → "Check what percentage of Wiingy students continue past their first 3 lessons — this is the mentorship retention signal"
+- ART_AS_TEACHER → "Check which subjects students search alongside music on Wiingy — e.g. music history, music theory, music and math"

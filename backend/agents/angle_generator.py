@@ -7,6 +7,12 @@ load_dotenv()
 
 PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "prompts")
 
+MUSIC_SIGNALS = [
+    'music', 'song', 'album', 'artist', 'concert', 'band',
+    'singer', 'piano', 'guitar', 'violin', 'grammy', 'festival',
+    'musician', 'orchestra', 'choir', 'instrument', 'musical',
+]
+
 
 def _load_prompt(filename):
     path = os.path.join(PROMPTS_DIR, filename)
@@ -24,13 +30,68 @@ def _parse_response(text):
     return json.loads(cleaned)
 
 
-def generate_angle(story):
-    api_key = os.getenv("GEMINI_API_KEY")
-    genai.configure(api_key=api_key)
+def _is_music_story(story):
+    cat = str(story.get("category", "")).lower()
+    if "music" in cat:
+        return True
+    text = (str(story.get("title", "")) + " " + str(story.get("description", ""))).lower()
+    hits = sum(1 for kw in MUSIC_SIGNALS if kw in text)
+    return hits >= 3
 
-    brand_context = _load_prompt("wiingy_brand_context.txt")
 
-    system_prompt = (
+def _build_music_prompt(brand_context):
+    return (
+        brand_context + "\n\n"
+        "This story is categorised as MUSIC. Follow the MUSIC CONTENT "
+        "FRAMEWORK from the brand context exactly. Do not use the standard "
+        "5-lens system.\n\n"
+        "Work through all 5 steps in order:\n"
+        "1. NEWS TYPE CLASSIFICATION\n"
+        "2. GENUINE ANGLE GATE — if the story fails, stop and return "
+        "no_angle=true with a reason\n"
+        "3. BOTTOM-UP REASONING CHAIN (all 4 steps)\n"
+        "4. BRIDGE SELECTION\n"
+        "5. WIINGY DATA HOOK\n\n"
+        "Do not skip the reasoning chain. Do not jump to the angle before "
+        "completing all 4 reasoning steps.\n\n"
+        "You must also select a recommended_style (POLICY IMPACT, CULTURAL "
+        "THINK-PIECE, or NEWS CONSEQUENCE) and provide a style_reason.\n\n"
+        "Return ONLY valid JSON with exactly this structure, no markdown "
+        "fences, no extra text:\n"
+        "{\n"
+        '  "is_music": true,\n'
+        '  "music_news_type": "one of: Festival/Event, Artist News, '
+        'Industry Trend, Chart/Data, Music Tech, Film/Soundtrack, '
+        'Music Education, Awards",\n'
+        '  "no_angle": true or false,\n'
+        '  "no_angle_reason": "string or null",\n'
+        '  "recommended_style": "CULTURAL THINK-PIECE" or "POLICY IMPACT" '
+        'or "NEWS CONSEQUENCE",\n'
+        '  "style_reason": "string",\n'
+        '  "topic_reasoning": "string",\n'
+        '  "reasoning_chain": {\n'
+        '    "step1_specific_observation": "string",\n'
+        '    "step2_invisible_audience": "string",\n'
+        '    "step3_underlying_mechanism": "string",\n'
+        '    "step4_generalizable_truth": "string"\n'
+        '  },\n'
+        '  "bridge": "one of the 7 bridge keys",\n'
+        '  "bridge_reason": "string",\n'
+        '  "angle": {\n'
+        '    "title": "string",\n'
+        '    "learning_angle": "string",\n'
+        '    "wiingy_link": "string",\n'
+        '    "wiingy_data_hook": "string"\n'
+        '  },\n'
+        '  "angles": null\n'
+        "}\n\n"
+        "If no_angle is true, set reasoning_chain to null, bridge to null, "
+        "bridge_reason to null, and angle to null."
+    )
+
+
+def _build_standard_prompt(brand_context):
+    return (
         brand_context + "\n\n"
         "You are a content strategist for the Wiingy Newsroom. Given a news "
         "story, you must do three things:\n\n"
@@ -53,84 +114,47 @@ def generate_angle(story):
         "Write 5 distinct content angles, each from a different lens. All five "
         "must use the recommended style you selected in Step 2.\n\n"
         "Each angle has four parts:\n\n"
-        "1. title: A punchy editorial headline for the article this angle "
-        "would produce. Specific, data-forward where possible. Not a question. "
-        "Not clickbait. Written like a real editorial headline.\n\n"
+        "1. title: A punchy editorial headline. Not a question. Not clickbait.\n"
         "2. learning_angle: 2-3 sentences on the core educational insight. "
-        "Lead with what is happening in learning or education. What is "
-        "shifting, why does it matter, what does it mean for students or "
-        "parents. Never start with Wiingy.\n\n"
-        "3. wiingy_link: Exactly 1 sentence connecting back to Wiingy. The "
-        "tone of this sentence must match the recommended style:\n"
-        "   - If POLICY IMPACT: be explicit — position Wiingy as the "
-        "affordable, fast path to act on the opportunity. Reference price "
-        "($20-$28/hr), free trial, or the <3% acceptance rate.\n"
-        "   - If CULTURAL THINK-PIECE: be implied — describe what effective "
-        "learning support looks like. Reference Wiingy's <3% acceptance rate "
-        "or 1-on-1 human approach as evidence, not as a pitch.\n"
-        "   - If NEWS CONSEQUENCE: be matter-of-fact — show how fully online "
-        "tutoring removes the specific barrier the news created. Reference "
-        "free trial, pay-per-lesson flexibility, or 24/7 support.\n\n"
-        "4. suggested_sources: A comma-separated list of 2-3 sources the "
-        "writer should look up when writing this article (e.g. BLS, Pew "
-        "Research, UNESCO). Choose sources that would genuinely have data "
-        "for this angle.\n\n"
-        "The five lenses are:\n"
-        "- Student: how this affects students directly\n"
-        "- Parent: what this means for families and parenting decisions\n"
-        "- Educator: how teachers and tutors are responding\n"
-        "- System: the broader structural shift in education this represents\n"
-        "- Opportunity: what students or parents can actively do in response\n\n"
-        "Rules for all five angles:\n"
-        "- Never start title or learning_angle with Wiingy\n"
-        "- Each angle must be genuinely distinct from the other four\n"
-        "- wiingy_link must match the tone of the recommended style\n"
-        "- learning_angle leads with education, Wiingy never appears until wiingy_link\n\n"
-        "Return ONLY a valid JSON object with exactly this structure, no "
-        "markdown fences, no extra text:\n"
+        "Never start with Wiingy.\n"
+        "3. wiingy_link: Exactly 1 sentence connecting back to Wiingy. Tone "
+        "matches the recommended style.\n"
+        "4. suggested_sources: 2-3 sources the writer should look up.\n\n"
+        "The five lenses: Student, Parent, Educator, System, Opportunity.\n\n"
+        "Rules: Never start title or learning_angle with Wiingy. Each angle "
+        "genuinely distinct. wiingy_link matches style tone.\n\n"
+        "Return ONLY valid JSON, no markdown fences:\n"
         "{\n"
         '  "topic_reasoning": "string",\n'
         '  "recommended_style": "POLICY IMPACT" or "CULTURAL THINK-PIECE" or "NEWS CONSEQUENCE",\n'
         '  "style_reason": "string",\n'
         '  "angles": [\n'
-        '    {\n'
-        '      "lens": "Student",\n'
-        '      "title": "string",\n'
-        '      "learning_angle": "string",\n'
-        '      "wiingy_link": "string",\n'
-        '      "suggested_sources": "string"\n'
-        '    },\n'
-        '    {\n'
-        '      "lens": "Parent",\n'
-        '      "title": "string",\n'
-        '      "learning_angle": "string",\n'
-        '      "wiingy_link": "string",\n'
-        '      "suggested_sources": "string"\n'
-        '    },\n'
-        '    {\n'
-        '      "lens": "Educator",\n'
-        '      "title": "string",\n'
-        '      "learning_angle": "string",\n'
-        '      "wiingy_link": "string",\n'
-        '      "suggested_sources": "string"\n'
-        '    },\n'
-        '    {\n'
-        '      "lens": "System",\n'
-        '      "title": "string",\n'
-        '      "learning_angle": "string",\n'
-        '      "wiingy_link": "string",\n'
-        '      "suggested_sources": "string"\n'
-        '    },\n'
-        '    {\n'
-        '      "lens": "Opportunity",\n'
-        '      "title": "string",\n'
-        '      "learning_angle": "string",\n'
-        '      "wiingy_link": "string",\n'
-        '      "suggested_sources": "string"\n'
-        '    }\n'
-        '  ]\n'
+        '    { "lens": "Student", "title": "string", "learning_angle": "string", '
+        '"wiingy_link": "string", "suggested_sources": "string" },\n'
+        '    { "lens": "Parent", "title": "string", "learning_angle": "string", '
+        '"wiingy_link": "string", "suggested_sources": "string" },\n'
+        '    { "lens": "Educator", "title": "string", "learning_angle": "string", '
+        '"wiingy_link": "string", "suggested_sources": "string" },\n'
+        '    { "lens": "System", "title": "string", "learning_angle": "string", '
+        '"wiingy_link": "string", "suggested_sources": "string" },\n'
+        '    { "lens": "Opportunity", "title": "string", "learning_angle": "string", '
+        '"wiingy_link": "string", "suggested_sources": "string" }\n'
+        "  ]\n"
         "}"
     )
+
+
+def generate_angle(story):
+    api_key = os.getenv("GEMINI_API_KEY")
+    genai.configure(api_key=api_key)
+
+    brand_context = _load_prompt("wiingy_brand_context.txt")
+    is_music = _is_music_story(story)
+
+    if is_music:
+        system_prompt = _build_music_prompt(brand_context)
+    else:
+        system_prompt = _build_standard_prompt(brand_context)
 
     user_message = (
         f"Story title: {story.get('title', '')}\n"
@@ -146,17 +170,48 @@ def generate_angle(story):
         try:
             response = model.generate_content(user_message)
             result = _parse_response(response.text)
-            story["topic_reasoning"] = result.get("topic_reasoning", "")
-            story["recommended_style"] = result.get("recommended_style", "")
-            story["style_reason"] = result.get("style_reason", "")
-            story["angles"] = result.get("angles", [])
+
+            if is_music:
+                story["is_music"] = True
+                story["music_news_type"] = result.get("music_news_type", "")
+                story["no_angle"] = bool(result.get("no_angle", False))
+                story["no_angle_reason"] = result.get("no_angle_reason")
+                story["topic_reasoning"] = result.get("topic_reasoning", "")
+                story["recommended_style"] = result.get("recommended_style", "")
+                story["style_reason"] = result.get("style_reason", "")
+                story["reasoning_chain"] = result.get("reasoning_chain")
+                story["bridge"] = result.get("bridge")
+                story["bridge_reason"] = result.get("bridge_reason")
+                story["angle"] = result.get("angle")
+                story["angles"] = None
+            else:
+                story["is_music"] = False
+                story["no_angle"] = False
+                story["no_angle_reason"] = None
+                story["music_news_type"] = None
+                story["reasoning_chain"] = None
+                story["bridge"] = None
+                story["bridge_reason"] = None
+                story["angle"] = None
+                story["topic_reasoning"] = result.get("topic_reasoning", "")
+                story["recommended_style"] = result.get("recommended_style", "")
+                story["style_reason"] = result.get("style_reason", "")
+                story["angles"] = result.get("angles", [])
             return story
         except Exception:
             if attempt == 1:
+                story["is_music"] = is_music
+                story["no_angle"] = False
+                story["no_angle_reason"] = None
+                story["music_news_type"] = None
+                story["reasoning_chain"] = None
+                story["bridge"] = None
+                story["bridge_reason"] = None
+                story["angle"] = None
                 story["topic_reasoning"] = "Generation failed"
                 story["recommended_style"] = "UNKNOWN"
                 story["style_reason"] = ""
-                story["angles"] = []
+                story["angles"] = [] if not is_music else None
                 return story
 
     return story
