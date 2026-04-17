@@ -1,7 +1,6 @@
 import time
 import json
 import traceback
-from pytrends.request import TrendReq
 
 
 def fetch_google_trends(keywords, timeframe='today 7-d', geo='US', us_state='all'):
@@ -41,6 +40,7 @@ def fetch_google_trends(keywords, timeframe='today 7-d', geo='US', us_state='all
     print(f"[trends] Using geo={final_geo}")
 
     try:
+        from pytrends.request import TrendReq
         pytrends = TrendReq(
             hl='en-US',
             tz=360,
