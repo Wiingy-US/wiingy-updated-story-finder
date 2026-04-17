@@ -301,45 +301,23 @@ async def api_discovery_refresh():
 
 @app.get("/api/discovery/debug")
 async def api_discovery_debug():
-    import requests as req_lib
+    import time as _time
+    from backend.agents.discovery_scraper import FEEDS, fetch_feed
 
-    debug = {"feed_results": {}}
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (compatible; WiingyBot/1.0)',
-        'Accept': 'application/rss+xml',
-    }
+    debug = {"feeds": []}
+    total = 0
+    for feed_info in FEEDS:
+        results = fetch_feed(feed_info)
+        total += len(results)
+        debug["feeds"].append({
+            "source": feed_info["source"],
+            "category": feed_info["category"],
+            "count": len(results),
+            "sample_titles": [r["query"] for r in results[:3]],
+        })
+        _time.sleep(0.3)
 
-    feeds = {
-        "education": "https://trends.google.com/trending/rss?geo=US&cat=0-174",
-        "science_tech": "https://trends.google.com/trending/rss?geo=US&cat=0-107",
-        "music": "https://trends.google.com/trending/rss?geo=US&cat=0-35",
-        "communities": "https://trends.google.com/trending/rss?geo=US&cat=0-299",
-        "jobs_education": "https://trends.google.com/trending/rss?geo=US&cat=0-60",
-    }
-
-    for name, url in feeds.items():
-        try:
-            r = req_lib.get(url, headers=headers, timeout=15)
-            feed = feedparser.parse(r.text) if r.status_code == 200 else None
-            debug["feed_results"][name] = {
-                "status": r.status_code,
-                "entries": len(feed.entries) if feed else 0,
-                "first_title": feed.entries[0].get('title', '') if feed and feed.entries else None,
-            }
-        except Exception as e:
-            debug["feed_results"][name] = {"error": str(e)}
-
-    try:
-        data = build_discovery_data()
-        di = data.get("debug_info") or {}
-        debug["after_keyword_filter"] = di.get("after_keyword_filter", 0)
-        debug["after_deduplication"] = di.get("after_deduplication", 0)
-        debug["filter_relaxed"] = di.get("filter_relaxed", False)
-        debug["total_results"] = di.get("total_results", 0)
-        debug["top_5_queries"] = [item["query"] for item in (data.get("top20") or [])[:5]]
-    except Exception as e:
-        debug["build_error"] = str(e)
-
+    debug["total_raw"] = total
     return debug
 
 

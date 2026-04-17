@@ -542,50 +542,43 @@
       return <canvas ref={canvasRef}></canvas>;
     }
 
-    const FEED_SOURCE_PILLS = {
-      'education': 'bg-brand/10 text-brand',
-      'science_tech': 'bg-blue-100 text-blue-700',
-      'music': 'bg-teal/10 text-teal',
-      'communities': 'bg-amber/10 text-amber',
-      'jobs_education': 'bg-green/10 text-green',
+    const CATEGORY_PILLS = {
+      'Education': 'bg-brand/10 text-brand',
+      'Tech & AI': 'bg-blue-100 text-blue-700',
+      'Music': 'bg-teal/10 text-teal',
+      'Trending': 'bg-amber/10 text-amber',
     };
-    const FEED_SOURCE_LABELS = {
-      'education': 'Education',
-      'science_tech': 'Tech & AI',
-      'music': 'Music',
-      'communities': 'Communities',
-      'jobs_education': 'Skills',
-    };
+    const CATEGORY_LIST = ['Education', 'Tech & AI', 'Music', 'Trending'];
 
     /* ── Trending Table ── */
     function TrendingTable({ data, onQueryClick }) {
       const [sortCol, setSortCol] = useState('rank');
       const [sortAsc, setSortAsc] = useState(true);
-      const [activeFeeds, setActiveFeeds] = useState(null);
+      const [activeCats, setActiveCats] = useState(null);
 
       function toggleSort(col) {
         if (sortCol === col) { setSortAsc(!sortAsc); } else { setSortCol(col); setSortAsc(true); }
       }
 
-      function toggleFeed(feed) {
-        if (activeFeeds === null) {
-          setActiveFeeds(new Set([feed]));
-        } else if (activeFeeds.has(feed)) {
-          const next = new Set(activeFeeds);
-          next.delete(feed);
-          setActiveFeeds(next.size === 0 ? null : next);
+      function toggleCat(cat) {
+        if (activeCats === null) {
+          setActiveCats(new Set([cat]));
+        } else if (activeCats.has(cat)) {
+          const next = new Set(activeCats);
+          next.delete(cat);
+          setActiveCats(next.size === 0 ? null : next);
         } else {
-          setActiveFeeds(new Set([...activeFeeds, feed]));
+          setActiveCats(new Set([...activeCats, cat]));
         }
       }
 
-      const feedCounts = {};
+      const catCounts = {};
       (data || []).forEach(r => {
-        const fs = r.feed_source || 'unknown';
-        feedCounts[fs] = (feedCounts[fs] || 0) + 1;
+        const c = r.category || 'Trending';
+        catCounts[c] = (catCounts[c] || 0) + 1;
       });
 
-      const filtered = activeFeeds === null ? (data || []) : (data || []).filter(r => activeFeeds.has(r.feed_source));
+      const filtered = activeCats === null ? (data || []) : (data || []).filter(r => activeCats.has(r.category || 'Trending'));
       const sorted = [...filtered].sort((a, b) => {
         let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
         if (typeof av === 'number' && typeof bv === 'number') return sortAsc ? av - bv : bv - av;
@@ -600,17 +593,17 @@
       return (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            <button onClick={() => setActiveFeeds(null)}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${activeFeeds === null ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand/50'}`}>
+            <button onClick={() => setActiveCats(null)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${activeCats === null ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand/50'}`}>
               All
             </button>
-            {Object.entries(FEED_SOURCE_LABELS).map(([key, label]) => {
-              const count = feedCounts[key] || 0;
-              const active = activeFeeds !== null && activeFeeds.has(key);
+            {CATEGORY_LIST.map(cat => {
+              const count = catCounts[cat] || 0;
+              const active = activeCats !== null && activeCats.has(cat);
               return (
-                <button key={key} onClick={() => toggleFeed(key)}
+                <button key={cat} onClick={() => toggleCat(cat)}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${active ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-brand/50'}`}>
-                  {label} ({count})
+                  {cat} ({count})
                 </button>
               );
             })}
@@ -621,7 +614,7 @@
                 <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
                   <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('rank')}>Rank<SortArrow col="rank" /></th>
                   <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('query')}>Query<SortArrow col="query" /></th>
-                  <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('feed_source')}>Topic Area<SortArrow col="feed_source" /></th>
+                  <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('category')}>Topic Area<SortArrow col="category" /></th>
                   <th className="px-3 py-2 text-right cursor-pointer hover:text-brand" onClick={() => toggleSort('traffic')}>Traffic<SortArrow col="traffic" /></th>
                   <th className="px-3 py-2 cursor-pointer hover:text-brand" onClick={() => toggleSort('started')}>Started<SortArrow col="started" /></th>
                 </tr>
@@ -634,7 +627,7 @@
                       <button onClick={() => onQueryClick && onQueryClick(row.query)} className="font-bold text-gray-900 hover:text-brand text-left">{row.query}</button>
                     </td>
                     <td className="px-3 py-2">
-                      <Pill text={FEED_SOURCE_LABELS[row.feed_source] || row.feed_source || '—'} color={FEED_SOURCE_PILLS[row.feed_source] || 'bg-gray-100 text-gray-600'} />
+                      <Pill text={row.category || 'Trending'} color={CATEGORY_PILLS[row.category] || 'bg-gray-100 text-gray-600'} />
                     </td>
                     <td className="px-3 py-2 text-right text-gray-600">{row.traffic || '—'}</td>
                     <td className="px-3 py-2 text-gray-400 text-xs">{row.started || '—'}</td>

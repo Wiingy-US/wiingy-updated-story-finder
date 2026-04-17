@@ -2,73 +2,111 @@ import feedparser
 import requests
 import time
 import traceback
-import random
 import re
+import random
 from datetime import datetime
 
-CATEGORY_FEEDS = [
-    ("education", "https://trends.google.com/trending/rss?geo=US&cat=0-174"),
-    ("science_tech", "https://trends.google.com/trending/rss?geo=US&cat=0-107"),
-    ("music", "https://trends.google.com/trending/rss?geo=US&cat=0-35"),
-    ("communities", "https://trends.google.com/trending/rss?geo=US&cat=0-299"),
-    ("jobs_education", "https://trends.google.com/trending/rss?geo=US&cat=0-60"),
+FEEDS = [
+    {
+        "url": "https://trends.google.com/trending/rss?geo=US",
+        "source": "US General",
+        "category": "Trending"
+    },
+    {
+        "url": "https://trends.google.com/trending/rss?geo=US&sort=search-volume",
+        "source": "US Volume",
+        "category": "Trending"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=AI+education+learning&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News AI Education",
+        "category": "Tech & AI"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=music+education+learning&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News Music",
+        "category": "Music"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=edtech+online+learning+students&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News Edtech",
+        "category": "Education"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=artificial+intelligence+students+schools&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News AI Schools",
+        "category": "Tech & AI"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=SAT+ACT+college+admission+test+prep&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News Test Prep",
+        "category": "Education"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=music+lessons+instrument+practice&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News Music Lessons",
+        "category": "Music"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=coding+bootcamp+programming+kids&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News Coding",
+        "category": "Tech & AI"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=homeschool+tutoring+parenting+education&hl=en-US&gl=US&ceid=US:en",
+        "source": "Google News Homeschool",
+        "category": "Education"
+    }
 ]
 
-FEED_LABELS = {
-    "education": "Education",
-    "science_tech": "Tech & AI",
-    "music": "Music",
-    "communities": "Communities",
-    "jobs_education": "Skills",
-}
-
-EDUCATION_KEYWORDS = [
-    'school', 'college', 'university', 'student', 'teacher',
-    'education', 'learning', 'study', 'tutor', 'tutoring',
-    'classroom', 'degree', 'course', 'curriculum', 'exam',
-    'test', 'SAT', 'ACT', 'GRE', 'GMAT', 'LSAT', 'AP',
-    'homework', 'scholarship', 'campus', 'academy', 'training',
-    'lecture', 'lesson', 'graduate', 'undergraduate', 'PhD',
-    'STEM', 'literacy', 'reading', 'math', 'science',
-    'AI', 'artificial intelligence', 'ChatGPT', 'GPT',
-    'machine learning', 'coding', 'programming', 'Python',
-    'edtech', 'online learning', 'e-learning', 'Khan',
-    'Duolingo', 'Coursera', 'bootcamp', 'tech',
-    'robot', 'algorithm', 'data science', 'computer',
-    'music', 'song', 'album', 'concert', 'band', 'artist',
-    'singer', 'piano', 'guitar', 'violin', 'instrument',
-    'orchestra', 'choir', 'melody', 'rhythm', 'musical',
-    'Grammy', 'performance', 'composition', 'musician',
-    'pop', 'jazz', 'classical', 'hip hop', 'rap', 'indie',
-    'streaming', 'Spotify', 'Apple Music', 'playlist',
-    'child', 'children', 'kids', 'parent', 'parenting',
-    'toddler', 'teen', 'teenager', 'youth', 'kindergarten',
-    'preschool', 'homeschool', 'daycare',
-    'skill', 'career', 'job', 'hire', 'hiring', 'workforce',
-    'internship', 'resume', 'interview', 'certification',
+INCLUDE_KEYWORDS = [
+    'school', 'college', 'university', 'student', 'students', 'teacher',
+    'education', 'learning', 'study', 'tutor', 'tutoring', 'classroom',
+    'degree', 'course', 'exam', 'test prep', 'SAT', 'ACT', 'GRE', 'GMAT',
+    'homework', 'scholarship', 'academy', 'training', 'lesson', 'lessons',
+    'graduate', 'STEM', 'literacy', 'math', 'reading', 'curriculum',
+    'edtech', 'online learning', 'e-learning', 'homeschool', 'preschool',
+    'kindergarten', 'AP class', 'campus', 'admission',
+    'AI', 'artificial intelligence', 'ChatGPT', 'machine learning',
+    'coding', 'programming', 'Python', 'bootcamp', 'algorithm',
+    'data science', 'computer science', 'Coursera', 'Khan Academy',
+    'Duolingo', 'robot', 'tech skills',
+    'music', 'song', 'album', 'concert', 'band', 'artist', 'singer',
+    'piano', 'guitar', 'violin', 'instrument', 'orchestra', 'choir',
+    'musical', 'Grammy', 'musician', 'music lesson', 'music school',
+    'composition', 'jazz', 'classical', 'music education',
+    'child', 'children', 'kids', 'parent', 'parenting', 'toddler',
+    'teen', 'teenager', 'youth',
+    'skill', 'skills', 'career', 'certification', 'upskill', 'workforce',
+    'internship', 'job training',
 ]
 
-_KEYWORD_PATTERNS = None
+EXCLUDE_KEYWORDS = [
+    'nfl', 'nba', 'mlb', 'nhl', 'soccer', 'football', 'basketball',
+    'baseball', 'tennis tournament', 'golf tournament', 'olympics',
+    'super bowl', 'world cup', 'championship game', 'playoffs',
+    'election', 'senator', 'congress', 'president', 'governor',
+    'stock market', 'crypto', 'bitcoin', 'ethereum',
+    'celebrity', 'kardashian', 'weather', 'hurricane', 'earthquake',
+    'atp', 'wta', 'ufc', 'boxing', 'nascar', 'f1 ',
+]
 
 
-def _get_keyword_patterns():
-    global _KEYWORD_PATTERNS
-    if _KEYWORD_PATTERNS is None:
-        _KEYWORD_PATTERNS = [re.compile(r'\b' + re.escape(kw) + r'\b', re.IGNORECASE) for kw in EDUCATION_KEYWORDS]
-    return _KEYWORD_PATTERNS
+def is_relevant(title):
+    title_lower = title.lower()
+    for kw in EXCLUDE_KEYWORDS:
+        if kw.lower() in title_lower:
+            return False, "excluded"
+    for kw in INCLUDE_KEYWORDS:
+        if kw.lower() in title_lower:
+            return True, "matched"
+    return False, "no_match"
 
 
-def _matches_keyword(title):
-    for pat in _get_keyword_patterns():
-        if pat.search(title):
-            return True
-    return False
-
-
-def _parse_traffic(traffic_str):
+def parse_traffic(traffic_str):
     if not traffic_str:
         return 0
-    s = traffic_str.replace('+', '').replace(',', '').strip().upper()
+    s = traffic_str.upper().replace('+', '').replace(',', '').strip()
     try:
         if 'M' in s:
             return int(float(s.replace('M', '')) * 1_000_000)
@@ -79,133 +117,134 @@ def _parse_traffic(traffic_str):
         return 0
 
 
-def _parse_entry(entry, feed_source):
-    title = entry.get('title', '')
-    traffic = ''
-    if hasattr(entry, 'ht_approx_traffic'):
-        traffic = entry.ht_approx_traffic
+def fetch_feed(feed_info):
+    url = feed_info["url"]
+    source = feed_info["source"]
+    category = feed_info["category"]
 
-    articles = []
-    news_items = []
-    for key in entry.keys():
-        if 'news_item_title' in key.lower():
-            val = entry.get(key, '')
-            if val and val not in news_items:
-                news_items.append(str(val))
-    if news_items:
-        articles = news_items[:3]
-    elif hasattr(entry, 'ht_news_item_title'):
-        articles = [entry.ht_news_item_title]
+    print(f"[discovery] Fetching feed: {source}")
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; WiingyBot/1.0)',
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        }
+        response = requests.get(url, headers=headers, timeout=15)
+        print(f"[discovery] {source} status: {response.status_code}, length: {len(response.text)}")
 
-    started = ''
-    if entry.get('published', ''):
-        started = entry.published[:16]
+        if response.status_code != 200:
+            return []
 
-    picture = ''
-    if hasattr(entry, 'ht_picture'):
-        picture = entry.ht_picture
+        feed = feedparser.parse(response.text)
+        print(f"[discovery] {source} entries: {len(feed.entries)}")
 
-    return {
-        "query": title,
-        "category": FEED_LABELS.get(feed_source, feed_source),
-        "traffic": traffic,
-        "started": started,
-        "articles": articles,
-        "picture": picture,
-        "feed_source": feed_source,
-    }
+        results = []
+        for entry in feed.entries:
+            title = entry.get('title', '').strip()
+            if not title:
+                continue
+
+            title = re.sub(r'\s*-\s*[A-Z][^-]{2,40}$', '', title).strip()
+
+            traffic = ''
+            traffic_num = 0
+            if hasattr(entry, 'ht_approx_traffic'):
+                traffic = entry.ht_approx_traffic
+                traffic_num = parse_traffic(traffic)
+
+            articles = []
+            for key in entry.keys():
+                if 'news_item_title' in key.lower():
+                    val = entry.get(key, '')
+                    if val and str(val) not in articles:
+                        articles.append(str(val))
+            if not articles and entry.get('summary'):
+                articles = [entry.summary[:100]]
+
+            started = ''
+            if entry.get('published', ''):
+                started = entry.published[:16]
+
+            results.append({
+                "query": title,
+                "category": category,
+                "traffic": traffic,
+                "traffic_num": traffic_num,
+                "started": started,
+                "articles": articles[:3],
+                "feed_source": source,
+            })
+
+        return results
+
+    except Exception as e:
+        print(f"[discovery] Feed {source} error: {e}")
+        traceback.print_exc()
+        return []
 
 
 def fetch_trending_now():
-    print("[discovery] Fetching from 5 category feeds")
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (compatible; WiingyBot/1.0)',
-        'Accept': 'application/rss+xml, application/xml, text/xml',
-    }
+    print("[discovery] Starting multi-feed fetch")
+    all_results = []
 
-    all_entries = []
-    feed_counts = {}
-
-    for feed_name, feed_url in CATEGORY_FEEDS:
-        try:
-            print(f"[discovery] Fetching {feed_name}: {feed_url}")
-            resp = requests.get(feed_url, headers=headers, timeout=15)
-            print(f"[discovery] {feed_name} status: {resp.status_code}")
-            if resp.status_code == 200:
-                feed = feedparser.parse(resp.text)
-                count = len(feed.entries)
-                feed_counts[feed_name] = count
-                print(f"[discovery] {feed_name}: {count} entries")
-                for entry in feed.entries:
-                    all_entries.append((entry, feed_name))
-            else:
-                feed_counts[feed_name] = 0
-        except Exception as e:
-            print(f"[discovery] {feed_name} failed: {e}")
-            feed_counts[feed_name] = 0
+    for feed_info in FEEDS:
+        results = fetch_feed(feed_info)
+        all_results.extend(results)
         time.sleep(0.5)
 
-    total_raw = len(all_entries)
-    print(f"[discovery] Total raw entries across all feeds: {total_raw}")
+    print(f"[discovery] Total raw results before filter: {len(all_results)}")
 
-    # Parse all entries
-    parsed = [_parse_entry(entry, src) for entry, src in all_entries]
+    filtered = []
+    for item in all_results:
+        relevant, reason = is_relevant(item["query"])
+        if relevant:
+            filtered.append(item)
 
-    # Keyword filter
-    filtered = [item for item in parsed if _matches_keyword(item["query"])]
-    filter_relaxed = False
-    print(f"[discovery] After keyword filter: {len(filtered)} (from {len(parsed)})")
+    print(f"[discovery] After relevance filter: {len(filtered)}")
 
     if len(filtered) < 20:
-        print(f"[discovery] Only {len(filtered)} after filter, relaxing to include all entries")
-        filtered = parsed
-        filter_relaxed = True
+        print("[discovery] Less than 20 after filter — relaxing to include all targeted feeds")
+        filtered = [r for r in all_results
+                    if r["feed_source"] != "US General"
+                    and r["feed_source"] != "US Volume"]
+        print(f"[discovery] After relaxing filter: {len(filtered)}")
 
-    # Deduplicate by full title lowercased
     seen = set()
     deduped = []
     for item in filtered:
-        key = item["query"].lower().strip()
-        if key and key not in seen:
+        key = item["query"].lower()[:60]
+        if key not in seen:
             seen.add(key)
             deduped.append(item)
-    print(f"[discovery] After dedup: {len(deduped)}")
 
-    # Sort by traffic descending
-    deduped.sort(key=lambda x: _parse_traffic(x.get("traffic", "")), reverse=True)
+    print(f"[discovery] After deduplication: {len(deduped)}")
 
-    # Take top 50 and assign ranks
-    results = deduped[:50]
-    for i, item in enumerate(results):
+    deduped.sort(key=lambda x: x.get("traffic_num", 0), reverse=True)
+
+    final = []
+    for i, item in enumerate(deduped[:50]):
         item["rank"] = i + 1
+        final.append(item)
 
-    print(f"[discovery] fetch_trending_now returning {len(results)} items")
-    return results, feed_counts, len(filtered) if not filter_relaxed else len(parsed), len(deduped), filter_relaxed
+    print(f"[discovery] Final result count: {len(final)}")
+    return final
+
+
+def fetch_realtime_trends():
+    return []
 
 
 def build_discovery_data():
     print("[discovery] Starting build_discovery_data")
     start = time.time()
 
+    top_results = fetch_trending_now()
+
     error = None
-    feed_counts = {}
-    after_filter = 0
-    after_dedup = 0
-    filter_relaxed = False
-
-    try:
-        top_items, feed_counts, after_filter, after_dedup, filter_relaxed = fetch_trending_now()
-    except Exception as e:
-        print(f"[discovery] fetch_trending_now failed: {e}")
-        traceback.print_exc()
-        top_items = []
-        error = f"Google Trends RSS failed: {str(e)}"
-
-    if not top_items and not error:
-        error = "Google Trends RSS returned no data. Please try again."
+    if not top_results:
+        error = "No relevant trending topics found. Please try again."
 
     quadrant_data = []
-    for item in top_items:
+    for item in top_results:
         rank = item["rank"]
         velocity = max(95 - ((rank - 1) * 1.5), 15)
 
@@ -219,35 +258,28 @@ def build_discovery_data():
         else:
             coverage = min(65 + ((article_count - 3) * 10), 90)
 
-        random.seed(rank)
-        velocity = min(100, max(5, velocity + random.randint(-8, 8)))
-        coverage = min(100, max(5, coverage + random.randint(-5, 5)))
+        random.seed(rank * 7)
+        velocity = min(100, max(5, int(velocity) + random.randint(-10, 10)))
+        coverage = min(100, max(5, coverage + random.randint(-8, 8)))
 
         quadrant_data.append({
             "query": item["query"],
-            "velocity": int(velocity),
-            "coverage": int(coverage),
+            "velocity": velocity,
+            "coverage": coverage,
             "articles": item.get("articles", []),
             "traffic": item.get("traffic", ""),
             "started": item.get("started", ""),
             "rank": rank,
-            "feed_source": item.get("feed_source", ""),
+            "category": item.get("category", ""),
         })
 
     result = {
         "quadrant_data": quadrant_data,
-        "top20": top_items,
+        "top20": top_results,
         "cached_at": datetime.utcnow().isoformat(),
         "error": error,
-        "debug_info": {
-            "feed_counts": feed_counts,
-            "after_keyword_filter": after_filter,
-            "after_deduplication": after_dedup,
-            "filter_relaxed": filter_relaxed,
-            "total_results": len(top_items),
-        },
     }
 
-    print(f"[discovery] Completed in {time.time()-start:.1f}s — "
-          f"{len(top_items)} trends, {len(quadrant_data)} quadrant points")
+    elapsed = time.time() - start
+    print(f"[discovery] Completed in {elapsed:.1f}s")
     return result
