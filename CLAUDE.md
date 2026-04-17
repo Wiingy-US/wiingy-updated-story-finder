@@ -65,6 +65,19 @@ Frontend renders a Pitch Quadrant scatter chart (Chart.js) plotting
 velocity vs coverage, and a sortable Top 20 Trending table. Clicking
 any trend hands off the query to the Search tab.
 
+## Article fetcher (on-demand)
+backend/agents/article_fetcher.py with two functions:
+- fetch_article_content(url) — fetches full HTML, extracts text via
+  BeautifulSoup (article > main > class-based > paragraph fallback),
+  caps at 8000 chars. Returns (content, None) on success or
+  (None, "scraper_blocked") on failure. Graceful for 403/401/429.
+- generate_article_summary(title, content) — Gemini 4-6 sentence
+  summary of the article content.
+POST /api/stories/{id}/fetch-article — fetches + summarises, caches
+result. Returns cached if already fetched.
+When article_content is available, the scorer uses it instead of the
+RSS description for more accurate scoring.
+
 ## Do NOT build in Part 1
 No Google Docs API. No email/SMTP. No GitHub Actions cron.
 No authentication. No Reddit scraping.

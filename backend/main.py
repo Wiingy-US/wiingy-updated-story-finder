@@ -20,6 +20,7 @@ from backend.database import (
     save_search,
     save_stories,
     update_story_scores,
+    update_article_content,
     save_content_angle,
     toggle_favourite,
     get_stories_by_search,
@@ -28,6 +29,7 @@ from backend.database import (
     get_story_by_id,
     get_angle_by_story_id,
 )
+from backend.agents.article_fetcher import fetch_article_content, generate_article_summary
 from backend.agents.news_scraper import fetch_all_news
 from backend.agents.relevance_scorer import score_story
 from backend.agents.angle_generator import generate_angle
@@ -139,12 +141,47 @@ async def api_search_stories(search_id: int):
     return stories
 
 
+@app.post("/api/stories/{story_id}/fetch-article")
+async def api_fetch_article(story_id: int):
+    story = get_story_by_id(story_id)
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    story = dict(story)
+    if story.get("article_fetch_status") == "success":
+        return {
+            "story_id": story_id,
+            "cached": True,
+            "summary": story.get("article_summary"),
+            "status": "success",
+        }
+    content, err = fetch_article_content(story.get("url", ""))
+    if err:
+        update_article_content(story_id, None, None, err)
+        return {
+            "story_id": story_id,
+            "status": err,
+            "message": "This source blocks automated readers. Summary not available."
+            if err == "scraper_blocked" else f"Fetch failed: {err}",
+        }
+    summary = generate_article_summary(story.get("title", ""), content)
+    update_article_content(story_id, content, summary, "success")
+    return {
+        "story_id": story_id,
+        "status": "success",
+        "summary": summary,
+        "cached": False,
+    }
+
+
 @app.post("/api/stories/{story_id}/score")
 async def api_score_story(story_id: int):
     story = get_story_by_id(story_id)
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
-    scored = score_story(dict(story))
+    story = dict(story)
+    if story.get("article_fetch_status") == "success" and story.get("article_content"):
+        story["article_content"] = story["article_content"]
+    scored = score_story(story)
     update_story_scores(story_id, scored)
     return get_story_by_id(story_id)
 

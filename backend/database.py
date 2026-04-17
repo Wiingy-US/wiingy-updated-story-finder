@@ -90,6 +90,10 @@ def init_db():
     add_column_if_not_exists("stories", "guardian_id", "TEXT")
     add_column_if_not_exists("stories", "byline", "TEXT")
     add_column_if_not_exists("stories", "section", "TEXT")
+    add_column_if_not_exists("stories", "article_content", "TEXT")
+    add_column_if_not_exists("stories", "article_summary", "TEXT")
+    add_column_if_not_exists("stories", "article_fetch_status", "TEXT")
+    add_column_if_not_exists("stories", "article_fetched_at", "TEXT")
 
     conn.commit()
     conn.close()
@@ -164,6 +168,22 @@ def update_story_scores(story_id, scores_dict):
             scores_dict.get("category"),
             story_id,
         )
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_article_content(story_id, content, summary, status):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """UPDATE stories SET
+           article_content = ?,
+           article_summary = ?,
+           article_fetch_status = ?,
+           article_fetched_at = ?
+           WHERE id = ?""",
+        (content, summary, status, datetime.utcnow().isoformat(), story_id)
     )
     conn.commit()
     conn.close()

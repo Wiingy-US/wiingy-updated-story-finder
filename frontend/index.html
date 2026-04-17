@@ -286,11 +286,13 @@
     }
 
     /* ── Story Card ── */
-    function StoryCard({ story, onScore, onAngle, onFav, scoringId, anglingId }) {
+    function StoryCard({ story, onScore, onAngle, onFav, onFetchArticle, scoringId, anglingId, fetchingArticleId }) {
       const [expanded, setExpanded] = useState(false);
       const [openCards, setOpenCards] = useState([false, false, false, false, false]);
+      const [summaryOpen, setSummaryOpen] = useState(true);
       const scored = story.overall_score != null;
       const hasAngles = Array.isArray(story.angles) && story.angles.length > 0;
+      const articleStatus = story.article_fetch_status;
 
       function toggleCard(i) {
         setOpenCards(prev => prev.map((v, idx) => idx === i ? !v : v));
@@ -325,11 +327,38 @@
             </div>
           </div>
 
+          {/* Article summary section */}
+          {articleStatus === 'success' && story.article_summary ? (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between cursor-pointer" onClick={() => setSummaryOpen(!summaryOpen)}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Article Summary</p>
+                <span className="text-xs text-gray-400">{summaryOpen ? '▼ Hide' : '▶ Show'}</span>
+              </div>
+              <div className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${summaryOpen ? 'max-h-[2000px]' : 'max-h-0'}`}>
+                <div className="bg-bg rounded-lg p-3">
+                  <p className="text-sm text-gray-700 leading-[1.7]">{story.article_summary}</p>
+                  <p className="text-[10px] text-gray-400 mt-2">AI-generated summary · Click Get Score to use this content for more accurate scoring</p>
+                </div>
+              </div>
+            </div>
+          ) : articleStatus === 'scraper_blocked' ? (
+            <p className="text-xs text-gray-400">🔒 This source blocks automated readers</p>
+          ) : !articleStatus ? (
+            <button
+              onClick={() => onFetchArticle(story.id)}
+              disabled={fetchingArticleId === story.id}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-500 border border-gray-200 rounded hover:border-brand/50 hover:text-brand disabled:opacity-50"
+            >
+              {fetchingArticleId === story.id ? <><Spinner /> Fetching article...</> : '📄 Read Summary'}
+            </button>
+          ) : null}
+
           {scored && (
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-medium text-gray-500">Overall</span>
                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-brand text-white text-xs font-bold">{story.overall_score?.toFixed?.(1) ?? story.overall_score}</span>
+                {scored && articleStatus === 'success' && <span className="text-xs text-green">✓ Scored using full article</span>}
               </div>
               <ScoreBar label="Brand Relevance" score={story.brand_relevance_score} color="bg-brand" />
               <ScoreBar label="Journalistic Value" score={story.journalistic_value_score} color="bg-green" />
@@ -580,6 +609,7 @@
       const [sortBy, setSortBy] = useState('recent');
       const [scoringId, setScoringId] = useState(null);
       const [anglingId, setAnglingId] = useState(null);
+      const [fetchingArticleId, setFetchingArticleId] = useState(null);
       const [batchProgress, setBatchProgress] = useState(null);
       const [sourceFilter, setSourceFilter] = useState('all');
 
@@ -654,6 +684,25 @@
           setStories(prev => prev.map(x => x.id === id ? { ...x, ...s } : x));
         } catch (e) { toast('Angle generation failed'); }
         setAnglingId(null);
+      }
+
+      async function fetchArticle(id) {
+        setFetchingArticleId(id);
+        try {
+          const r = await api(`/api/stories/${id}/fetch-article`, { method: 'POST' });
+          const data = await r.json();
+          setStories(prev => prev.map(x => x.id === id ? {
+            ...x,
+            article_summary: data.summary || null,
+            article_fetch_status: data.status,
+          } : x));
+          setFavs(prev => prev.map(x => x.id === id ? {
+            ...x,
+            article_summary: data.summary || null,
+            article_fetch_status: data.status,
+          } : x));
+        } catch (e) { toast('Failed to fetch article'); }
+        setFetchingArticleId(null);
       }
 
       async function scoreAll() {
@@ -930,7 +979,7 @@
 
                     <div className="grid gap-4">
                       {sorted.map(s => (
-                        <StoryCard key={s.id} story={s} onScore={scoreOne} onAngle={angleOne} onFav={toggleFav} scoringId={scoringId} anglingId={anglingId} />
+                        <StoryCard key={s.id} story={s} onScore={scoreOne} onAngle={angleOne} onFav={toggleFav} onFetchArticle={fetchArticle} scoringId={scoringId} anglingId={anglingId} fetchingArticleId={fetchingArticleId} />
                       ))}
                     </div>
                   </div>
@@ -974,7 +1023,7 @@
                 ) : (
                   <div className="grid gap-4">
                     {favs.map(s => (
-                      <StoryCard key={s.id} story={{...s, is_favourite: 1}} onScore={favScoreOne} onAngle={favAngleOne} onFav={favToggle} scoringId={scoringId} anglingId={anglingId} />
+                      <StoryCard key={s.id} story={{...s, is_favourite: 1}} onScore={favScoreOne} onAngle={favAngleOne} onFav={favToggle} onFetchArticle={fetchArticle} scoringId={scoringId} anglingId={anglingId} fetchingArticleId={fetchingArticleId} />
                     ))}
                   </div>
                 )}

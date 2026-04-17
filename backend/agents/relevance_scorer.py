@@ -33,10 +33,24 @@ def score_story(story):
 
     system_prompt = brand_context + "\n\n" + scoring_rubric
 
+    title = story.get('title', '')
+    description = story.get('description', '')
+    article_summary = story.get('article_summary', '')
+    article_content = story.get('article_content', '')
+
+    if article_summary:
+        content_block = f"Title: {title}\n\nFull article summary: {article_summary}\n\nOriginal description: {description}"
+        print("[scorer] Using full article summary for scoring")
+    elif article_content:
+        content_block = f"Title: {title}\n\nArticle content (excerpt): {article_content[:2000]}\n\nOriginal description: {description}"
+        print("[scorer] Using article content excerpt for scoring")
+    else:
+        content_block = f"Title: {title}\nDescription: {description}"
+        print("[scorer] Using title and description only for scoring")
+
     user_message = (
         f"Score this story:\n\n"
-        f"Title: {story.get('title', '')}\n"
-        f"Description: {story.get('description', '')}\n\n"
+        f"{content_block}\n\n"
         f"Return ONLY a valid JSON object with exactly these keys:\n"
         f"brand_relevance_score, brand_relevance_reason, "
         f"journalistic_value_score, journalistic_value_reason, "
